@@ -49,17 +49,29 @@ for (file in files) {
 }
 rownames(combined_data) <- df_mirnas[!duplicated(df_mirnas$miRNA.ID),]
 CTs <- combined_data
+CTs <- na.omit(CTs)
+#CTs <- CTs[rowSums(is.na(CTs)) != ncol(CTs),]
+#Todos os valores 'undetermined' e >40 serão considerados com 40
+#CTs[,c(1:6)] <- lapply(CTs[,c(1:6)], function(x){
+#  ifelse(is.na(x), 50, x)
+#})
 ```
 
+#normalizacao
 ```{r}
+CTs %>% rownames_to_column(., var="miRNA") %>% reshape2::melt(id_vars='miRNA') %>% group_by(miRNA) %>% rstatix::get_summary_stats(show=c('ci', 'sd')) %>% View()
 
 dCT <-  apply(CTs, 2, function(x){
   x - ((x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"])/5)
 })
+
+dCT <-  apply(CTs, 2, function(x){
+  x - ((x["hsa-miR-656-3p"]))
+})
 #x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"]
 
-Avg.CT <- data.frame(Con_signo = round((rowMeans(CTs[,1:2])),2),
-                      Grave = round((rowMeans(CTs[,3:4])),2),
+Avg.CT <- data.frame(Grave = round((rowMeans(CTs[,1:2])),2),
+                      Con_signo = round((rowMeans(CTs[,3:4])),2),
                       Sin_Signo = round((rowMeans(CTs[,5:6])),2))
 
 dCT.2 <- data.frame(2^-(dCT))
@@ -69,11 +81,11 @@ dCT.2 <- data.frame(2^-(dCT))
 ```{r}
 #Criar dataframe com a identificacao de cada paciente em grupos
 amostras <- data.frame(amostra=as.character(colnames(dCT.2)))
-amostras$Condition <- c(rep("Con_signo", 2), rep("Grave", 2), rep("Sin_signo", 2))
+amostras$Condition <- c(rep("Grave", 2), rep("Signo de Alarma", 2), rep("Sin Signo de Alarma", 2))
 amostras <- amostras %>% column_to_rownames("amostra")
 
 #objeto com a selecao das cores gerais
-cores <- c("yellow", "black", "blue")
+cores <- c( "black", "yellow", "blue")
 ```
 ##Dendograma
 ```{r}
@@ -88,7 +100,7 @@ dend %>%
   color_labels(labels = colnames(dCT.2[5:6]), col=cores[3]) %>%
   plot() 
 legend("topright",
-       legend=c("Con Signo", "Grave", "Sin Signo"),
+       legend=c("Grave", "Con Signo", "Sin Signo"),
        col=cores,
        pch=c(20,20,20), bty = "n", pt.cex = 1.5, cex = .8)
 
@@ -118,14 +130,14 @@ pheatmap(cor(dCT.2, method = "spearman"),
 
 ##Heatmap expressao
 ```{r}
-pheatmap(dCT,
+pheatmap(dCT[-31,],
          border_color = NA,
          cluster_cols = F,
          color=colorRampPalette(c("blue", "black", "yellow"))(100),
          annotation_col = amostras,
-         annotation_colors = list(Condition = c(Con_signo = cores[1],
-                                                Grave = cores[2],
-                                                Sin_signo = cores[3])),
+         annotation_colors = list(Condition = c(Grave = cores[1],
+                                                `Signo de Alarma` = cores[2],
+                                                `Sin Signo de Alarma` = cores[3])),
          show_colnames = F,
          scale="row",
          legend_breaks = c(-2,0,2),
@@ -134,7 +146,7 @@ pheatmap(dCT,
 
 ##PCA
 ```{r}
-pca <- PCA(t(dCT.2), graph = F)
+pca <- PCA(t(dCT), graph = F)
 
 
 fviz_pca_ind(pca,
