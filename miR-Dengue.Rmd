@@ -7,8 +7,146 @@ output: html_document
 
 ```{r}
 library(tidyverse)
-library(readxl)
+library(openxlsx)
 library(pheatmap)
-library(factoextra); library(factoextra)
+library(factoextra); library(FactoMineR)
+library(dendextend)
+library(RColorBrewer)
+```
+
+```{r}
+files <- list.files(pattern = 'microRNAs')
+
+df_mirnas <- read.xlsx('miR-plate-cod.xlsx')
+# Criar um data frame vazio para armazenar os dados
+combined_data <- data.frame()
+
+# Loop para ler cada arquivo e adicionar como coluna no data frame
+for (file in files) {
+  # Extrair o nome da amostra do nome do arquivo
+  sample_name <- sub("microRNAs-(.*)\\.xlsx", "\\1", file)
+  sample_name <- gsub("-", ".", sample_name)
+  # Ler o arquivo Excel
+  data <- read.xlsx(file, startRow = 8, cols = 10, na.strings = "Undetermined", skipEmptyRows = F)
+  #data <- as.data.frame(data)
+  #data <- as.numeric(data)
+  
+  # Substituir as linhas 85 e 86 originais (cel-miR-39) e linhas originais 93-96 (controles de reação) pelas médias destas linhas
+  # Isto para nomear as linhas com os miR unicos
+  data[85, ] <- mean(c(data[85,], data[86,])) #Media cel-miR-39
+  data <- data.frame(data[-86,]) #Remove duplicata cel-miR-39
+  data[97, ] <- mean(c(data[92,], data[93,]))
+  data[98, ] <- mean(c(data[94,], data[95,]))
+  data <- as.data.frame(data[c(1:91,97,98),])
+  
+  # Supondo que os dados estão na primeira coluna do Excel
+  if (ncol(combined_data) == 0) {
+    combined_data <- data.frame(data[,1])
+    colnames(combined_data) <- sample_name
+  } else {
+    combined_data[sample_name] <- data[,1]
+  }
+}
+rownames(combined_data) <- df_mirnas[!duplicated(df_mirnas$miRNA.ID),]
+CTs <- combined_data
+```
+
+```{r}
+
+dCT <-  apply(CTs, 2, function(x){
+  x - ((x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"])/5)
+})
+#x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"]
+
+Avg.CT <- data.frame(Con_signo = round((rowMeans(CTs[,1:2])),2),
+                      Grave = round((rowMeans(CTs[,3:4])),2),
+                      Sin_Signo = round((rowMeans(CTs[,5:6])),2))
+
+dCT.2 <- data.frame(2^-(dCT))
+```
+
+#Clusterizacion
+```{r}
+#Criar dataframe com a identificacao de cada paciente em grupos
+amostras <- data.frame(amostra=as.character(colnames(dCT.2)))
+amostras$Condition <- c(rep("Con_signo", 2), rep("Grave", 2), rep("Sin_signo", 2))
+amostras <- amostras %>% column_to_rownames("amostra")
+
+#objeto com a selecao das cores gerais
+cores <- c("yellow", "black", "blue")
+```
+##Dendograma
+```{r}
+dist <- dist(t(dCT.2))
+hc <- hclust(dist)
+dend <- as.dendrogram(hc)
+#plot(dend)
+
+dend %>% 
+  color_labels(labels = colnames(dCT.2[1:2]), col=cores[1]) %>%
+  color_labels(labels = colnames(dCT.2[3:4]) , col=cores[2]) %>%
+  color_labels(labels = colnames(dCT.2[5:6]), col=cores[3]) %>%
+  plot() 
+legend("topright",
+       legend=c("Con Signo", "Grave", "Sin Signo"),
+       col=cores,
+       pch=c(20,20,20), bty = "n", pt.cex = 1.5, cex = .8)
+
+```
+
+##Distancia euclidiana
+```{r}
+dist.matrix <- as.matrix(dist)
+pheatmap(dist.matrix,
+         color=colorRampPalette(c("white", "blue"))(50),
+         scale = "none",
+         border_color = NA)
+```
+
+##Correlação
+```{r}
+breaksList = seq(-1,1, by = 0.02)
+
+pheatmap(cor(dCT.2, method = "spearman"),
+         #color=colorRampPalette(c("blue", "black", "yellow"))(100),
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "PRGn")))(length(breaksList)), # Defines the vector of colors for the legend (it has to be of the same lenght of breaksList)
+         breaks = breaksList,
+         border=NA,
+         cluster_rows = T,
+         cluster_cols = T)
+```
+
+##Heatmap expressao
+```{r}
+pheatmap(dCT,
+         border_color = NA,
+         cluster_cols = F,
+         color=colorRampPalette(c("blue", "black", "yellow"))(100),
+         annotation_col = amostras,
+         annotation_colors = list(Condition = c(Con_signo = cores[1],
+                                                Grave = cores[2],
+                                                Sin_signo = cores[3])),
+         show_colnames = F,
+         scale="row",
+         legend_breaks = c(-2,0,2),
+         legend_labels = c("Min", "Avg", "Max"))
+```
+
+##PCA
+```{r}
+pca <- PCA(t(dCT.2), graph = F)
+
+
+fviz_pca_ind(pca,
+             geom.ind = "point",
+             pointsize=4, pointshape=21,
+             fill.ind = amostras$Condition,
+             mean.point=F,
+             addEllipses = T, ellipse.type="confidence",
+             legend.title="Condition",
+             title="")+
+  theme_classic()+
+  scale_fill_manual(values=cores)+ #legenda
+  scale_color_manual(values=cores)
 ```
 
