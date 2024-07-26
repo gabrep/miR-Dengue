@@ -59,29 +59,51 @@ CTs <- na.omit(CTs)
 
 #normalizacao
 ```{r}
-CTs %>% rownames_to_column(., var="miRNA") %>% reshape2::melt(id_vars='miRNA') %>% group_by(miRNA) %>% rstatix::get_summary_stats(show=c('ci', 'sd')) %>% View()
+dev <- CTs %>% rownames_to_column(., var="miRNA") %>% reshape2::melt(id_vars='miRNA') %>% group_by(miRNA) %>% rstatix::get_summary_stats(show=c('ci', 'sd'))
 
-dCT <-  apply(CTs, 2, function(x){
-  x - ((x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"])/5)
-})
+
+
+#x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"]
+#dCT <-  apply(CTs, 2, function(x){
+#  x - ((x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"])/5)
+#})
 
 dCT <-  apply(CTs, 2, function(x){
   x - ((x["hsa-miR-656-3p"]))
 })
-#x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"]
 
-Avg.CT <- data.frame(Grave = round((rowMeans(CTs[,1:2])),2),
-                      Con_signo = round((rowMeans(CTs[,3:4])),2),
-                      Sin_Signo = round((rowMeans(CTs[,5:6])),2))
+dCT[29,]  #Verificar posição do miR normalizador
+
 
 dCT.2 <- data.frame(2^-(dCT))
+
+
+Avg.dCT <- data.frame(Grave = round((rowMeans(dCT[,1:3])),2),
+                      Con_signo = round((rowMeans(dCT[,4:5])),2),
+                      Sin_Signo = round((rowMeans(dCT[,5:6])),2))
+Avg.2.dCT <- 2^-(Avg.dCT)
 ```
+
+#Fold change
+
+Olhando a tabela de miRNA covid:
+  FoldChange é calculado a partir da média dos valores de delta CT (2^(-Avg.Delta(CT))) como B/A, onde B = GOI e A = HK
+```{r}
+fc_grave.sa <- data.frame(FC_Grave_SA = Avg.2.dCT$Grave/Avg.2.dCT$Con_signo, row.names = rownames(Avg.2.dCT))
+```
+
+#ddCT
+```{r}
+data.frame(apply(dCT[,1:3], 1, function(x) x - mean(dCT[, 5:6]))) %>% t(.)
+```
+
+
 
 #Clusterizacion
 ```{r}
 #Criar dataframe com a identificacao de cada paciente em grupos
 amostras <- data.frame(amostra=as.character(colnames(dCT.2)))
-amostras$Condition <- c(rep("Grave", 2), rep("Signo de Alarma", 2), rep("Sin Signo de Alarma", 2))
+amostras$Condition <- c(rep("Grave", 3), rep("Signo de Alarma", 2), rep("Sin Signo de Alarma", 2))
 amostras <- amostras %>% column_to_rownames("amostra")
 
 #objeto com a selecao das cores gerais
@@ -95,9 +117,9 @@ dend <- as.dendrogram(hc)
 #plot(dend)
 
 dend %>% 
-  color_labels(labels = colnames(dCT.2[1:2]), col=cores[1]) %>%
-  color_labels(labels = colnames(dCT.2[3:4]) , col=cores[2]) %>%
-  color_labels(labels = colnames(dCT.2[5:6]), col=cores[3]) %>%
+  color_labels(labels = colnames(dCT.2[1:3]), col=cores[1]) %>%
+  color_labels(labels = colnames(dCT.2[4:5]) , col=cores[2]) %>%
+  color_labels(labels = colnames(dCT.2[6:7]), col=cores[3]) %>%
   plot() 
 legend("topright",
        legend=c("Grave", "Con Signo", "Sin Signo"),
@@ -130,7 +152,7 @@ pheatmap(cor(dCT.2, method = "spearman"),
 
 ##Heatmap expressao
 ```{r}
-pheatmap(dCT[-31,],
+pheatmap(dCT[-29,], #Remover miR usado como normalizador (todos seus valores serão = 0)
          border_color = NA,
          cluster_cols = F,
          color=colorRampPalette(c("blue", "black", "yellow"))(100),
