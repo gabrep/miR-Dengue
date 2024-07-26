@@ -72,7 +72,7 @@ dCT <-  apply(CTs, 2, function(x){
   x - ((x["hsa-miR-656-3p"]))
 })
 
-dCT[29,]  #Verificar posição do miR normalizador
+dCT[27,]  #Verificar posição do miR normalizador
 
 
 dCT.2 <- data.frame(2^-(dCT))
@@ -103,7 +103,7 @@ data.frame(apply(dCT[,1:3], 1, function(x) x - mean(dCT[, 5:6]))) %>% t(.)
 ```{r}
 #Criar dataframe com a identificacao de cada paciente em grupos
 amostras <- data.frame(amostra=as.character(colnames(dCT.2)))
-amostras$Condition <- c(rep("Grave", 3), rep("Signo de Alarma", 2), rep("Sin Signo de Alarma", 2))
+amostras$Condition <- c(rep("Grave", 3), rep("Signo de Alarma", 3), rep("Sin Signo de Alarma", 3))
 amostras <- amostras %>% column_to_rownames("amostra")
 
 #objeto com a selecao das cores gerais
@@ -118,8 +118,8 @@ dend <- as.dendrogram(hc)
 
 dend %>% 
   color_labels(labels = colnames(dCT.2[1:3]), col=cores[1]) %>%
-  color_labels(labels = colnames(dCT.2[4:5]) , col=cores[2]) %>%
-  color_labels(labels = colnames(dCT.2[6:7]), col=cores[3]) %>%
+  color_labels(labels = colnames(dCT.2[4:6]) , col=cores[2]) %>%
+  color_labels(labels = colnames(dCT.2[7:9]), col=cores[3]) %>%
   plot() 
 legend("topright",
        legend=c("Grave", "Con Signo", "Sin Signo"),
@@ -152,7 +152,7 @@ pheatmap(cor(dCT.2, method = "spearman"),
 
 ##Heatmap expressao
 ```{r}
-pheatmap(dCT[-29,], #Remover miR usado como normalizador (todos seus valores serão = 0)
+pheatmap(dCT[-27,], #Remover miR usado como normalizador (todos seus valores serão = 0)
          border_color = NA,
          cluster_cols = F,
          color=colorRampPalette(c("blue", "black", "yellow"))(100),
@@ -168,7 +168,7 @@ pheatmap(dCT[-29,], #Remover miR usado como normalizador (todos seus valores ser
 
 ##PCA
 ```{r}
-pca <- PCA(t(dCT), graph = F)
+pca <- PCA(t(dCT.2), graph = F)
 
 
 fviz_pca_ind(pca,
