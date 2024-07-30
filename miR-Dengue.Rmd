@@ -12,6 +12,7 @@ library(pheatmap)
 library(factoextra); library(FactoMineR)
 library(dendextend)
 library(RColorBrewer)
+library(EnhancedVolcano)
 ```
 
 ```{r}
@@ -49,17 +50,48 @@ for (file in files) {
 }
 rownames(combined_data) <- df_mirnas[!duplicated(df_mirnas$miRNA.ID),]
 CTs <- combined_data
-CTs <- na.omit(CTs)
-#CTs <- CTs[rowSums(is.na(CTs)) != ncol(CTs),]
+#CTs <- na.omit(CTs)
+CTs <- CTs[rowSums(is.na(CTs)) < 3,]
 #Todos os valores 'undetermined' e >40 serão considerados com 40
 #CTs[,c(1:6)] <- lapply(CTs[,c(1:6)], function(x){
 #  ifelse(is.na(x), 50, x)
 #})
 ```
 
+#Repor NAs com média
+```{r}
+CTs.Grave <- CTs[,1:3]
+CTs.SA <- CTs[,4:6]
+CTs.SSA <- CTs[,7:9]
+
+# Função para substituir NA pela média das outras duas colunas na linha
+replace_na_with_row_mean <- function(row) {
+  na_index <- is.na(row)
+  if (sum(na_index) == 1) {
+    row[na_index] <- mean(row[!na_index], na.rm = TRUE)
+  }
+  return(row)
+}
+
+
+CTs.Grave <- as.data.frame(t(apply(CTs.Grave, 1, replace_na_with_row_mean)))
+CTs.SA <- as.data.frame(t(apply(CTs.SA, 1, replace_na_with_row_mean)))
+CTs.SSA <- as.data.frame(t(apply(CTs.SSA, 1, replace_na_with_row_mean)))
+
+
+##Adicionar quarta coluna de média
+CTs.Grave$G.4_P <- rowMeans(CTs.Grave)
+CTs.SA$SA.4_P <- rowMeans(CTs.SA)
+CTs.SSA$SSA.4_P <- rowMeans(CTs.SSA)
+
+
+CTs.full <- cbind(CTs.Grave, CTs.SA, CTs.SSA) %>% na.omit()
+CTs.full <- CTs.full[c(-44,-43),]
+```
+
 #normalizacao
 ```{r}
-dev <- CTs %>% rownames_to_column(., var="miRNA") %>% reshape2::melt(id_vars='miRNA') %>% group_by(miRNA) %>% rstatix::get_summary_stats(show=c('ci', 'sd'))
+dev <- CTs.full %>% rownames_to_column(., var="miRNA") %>% reshape2::melt(id_vars='miRNA') %>% group_by(miRNA) %>% rstatix::get_summary_stats(show=c('ci', 'sd'))
 
 
 
@@ -68,29 +100,76 @@ dev <- CTs %>% rownames_to_column(., var="miRNA") %>% reshape2::melt(id_vars='mi
 #  x - ((x["SNORD61"]+x["SNORD68"]+x["SNORD72"]+x["SNORD95"]+x["SNORD96A"])/5)
 #})
 
-dCT <-  apply(CTs, 2, function(x){
+dCT <-  apply(CTs.full, 2, function(x){
   x - ((x["hsa-miR-656-3p"]))
 })
 
-dCT[27,]  #Verificar posição do miR normalizador
-
+dCT <- dCT[!rowSums(dCT == 0) == ncol(dCT),]
 
 dCT.2 <- data.frame(2^-(dCT))
 
 
-Avg.dCT <- data.frame(Grave = round((rowMeans(dCT[,1:3])),2),
-                      Con_signo = round((rowMeans(dCT[,4:5])),2),
-                      Sin_Signo = round((rowMeans(dCT[,5:6])),2))
+Avg.dCT <- data.frame(Grave = round((rowMeans(dCT[,1:4])),2),
+                      Con_signo = round((rowMeans(dCT[,5:8])),2),
+                      Sin_Signo = round((rowMeans(dCT[,9:12])),2))
 Avg.2.dCT <- 2^-(Avg.dCT)
 ```
 
 #Fold change
 
-Olhando a tabela de miRNA covid:
-  FoldChange é calculado a partir da média dos valores de delta CT (2^(-Avg.Delta(CT))) como B/A, onde B = GOI e A = HK
+###Função de t test
 ```{r}
-fc_grave.sa <- data.frame(FC_Grave_SA = Avg.2.dCT$Grave/Avg.2.dCT$Con_signo, row.names = rownames(Avg.2.dCT))
+# Função para aplicar o teste t a cada linha, dados os intervalos de colunas
+apply_t_test <- function(df, cols_group1, cols_group2) {
+  # Função interna para aplicar o teste t a uma linha específica
+  apply_t_test_to_row <- function(row) {
+    group1 <- as.numeric(row[cols_group1])
+    group2 <- as.numeric(row[cols_group2])
+    
+    if (any(is.na(group1)) || any(is.na(group2))) {
+      return(NA) # Retorna NA se houver valores NA na linha
+    }
+    
+    t_test_result <- t.test(group1, group2)
+    return(t_test_result$p.value)
+  }
+  
+  # Aplicar a função a cada linha do dataframe
+  p_values <- apply(df, 1, apply_t_test_to_row)
+  
+  # Ajustar os valores de p usando o método de Bonferroni
+  adjusted_p_values <- p.adjust(p_values, method = "fdr")
+  
+  p_val <- data.frame(p_val = p_values, p.adj = adjusted_p_values)
+  return(p_val)
+}
+
+
 ```
+
+Olhando a tabela de miRNA covid:
+  FoldChange é calculado a partir da média dos valores de delta CT (2^(-Avg.Delta(CT))) como B/A, onde B = GOI e A = Control
+```{r}
+fc_grave.sa <- data.frame(FC_Grave_SA = Avg.2.dCT$Grave/Avg.2.dCT$Con_signo, row.names = rownames(Avg.2.dCT)) %>% 
+  mutate(pval = apply_t_test(dCT.2, 1:4, 5:8)[,1],
+         padj = apply_t_test(dCT.2, 1:4, 5:8)[,2])
+
+fc_ssa.grave <- data.frame(FC_SSA_Grave = Avg.2.dCT$Sin_Signo/Avg.2.dCT$Grave, row.names = rownames(Avg.2.dCT)) %>% 
+  mutate(pval = apply_t_test(dCT.2, 9:12, 1:4)[,1],
+         padj = apply_t_test(dCT.2, 9:12, 1:4)[,2])
+
+fc_ssa.sa <- data.frame(FC_SSA_SA = Avg.2.dCT$Sin_Signo/Avg.2.dCT$Con_signo, row.names = rownames(Avg.2.dCT)) %>% 
+  mutate(pval = apply_t_test(dCT.2, 9:12, 5:8)[,1],
+         padj = apply_t_test(dCT.2, 9:12, 5:8)[,2])
+
+fc_grave.sa$log2fc <- log2(fc_grave.sa$FC_Grave_SA)
+fc_ssa.grave$log2fc <- log2(fc_ssa.grave$FC_SSA_Grave)
+fc_ssa.sa$log2fc <- log2(fc_ssa.sa$FC_SSA_SA)
+
+```
+
+
+
 
 #ddCT
 ```{r}
@@ -103,7 +182,7 @@ data.frame(apply(dCT[,1:3], 1, function(x) x - mean(dCT[, 5:6]))) %>% t(.)
 ```{r}
 #Criar dataframe com a identificacao de cada paciente em grupos
 amostras <- data.frame(amostra=as.character(colnames(dCT.2)))
-amostras$Condition <- c(rep("Grave", 3), rep("Signo de Alarma", 3), rep("Sin Signo de Alarma", 3))
+amostras$Condition <- c(rep("Grave", 4), rep("Signo de Alarma", 4), rep("Sin Signo de Alarma", 4))
 amostras <- amostras %>% column_to_rownames("amostra")
 
 #objeto com a selecao das cores gerais
@@ -117,9 +196,9 @@ dend <- as.dendrogram(hc)
 #plot(dend)
 
 dend %>% 
-  color_labels(labels = colnames(dCT.2[1:3]), col=cores[1]) %>%
-  color_labels(labels = colnames(dCT.2[4:6]) , col=cores[2]) %>%
-  color_labels(labels = colnames(dCT.2[7:9]), col=cores[3]) %>%
+  color_labels(labels = colnames(dCT.2[1:4]), col=cores[1]) %>%
+  color_labels(labels = colnames(dCT.2[5:8]) , col=cores[2]) %>%
+  color_labels(labels = colnames(dCT.2[9:12]), col=cores[3]) %>%
   plot() 
 legend("topright",
        legend=c("Grave", "Con Signo", "Sin Signo"),
@@ -141,7 +220,7 @@ pheatmap(dist.matrix,
 ```{r}
 breaksList = seq(-1,1, by = 0.02)
 
-pheatmap(cor(dCT.2, method = "spearman"),
+pheatmap(cor(dCT, method = "spearman"),
          #color=colorRampPalette(c("blue", "black", "yellow"))(100),
          color = colorRampPalette(rev(brewer.pal(n = 7, name = "PRGn")))(length(breaksList)), # Defines the vector of colors for the legend (it has to be of the same lenght of breaksList)
          breaks = breaksList,
@@ -152,7 +231,7 @@ pheatmap(cor(dCT.2, method = "spearman"),
 
 ##Heatmap expressao
 ```{r}
-pheatmap(dCT[-27,], #Remover miR usado como normalizador (todos seus valores serão = 0)
+pheatmap(dCT.2,
          border_color = NA,
          cluster_cols = F,
          color=colorRampPalette(c("blue", "black", "yellow"))(100),
@@ -160,7 +239,7 @@ pheatmap(dCT[-27,], #Remover miR usado como normalizador (todos seus valores ser
          annotation_colors = list(Condition = c(Grave = cores[1],
                                                 `Signo de Alarma` = cores[2],
                                                 `Sin Signo de Alarma` = cores[3])),
-         show_colnames = F,
+         show_colnames = T,
          scale="row",
          legend_breaks = c(-2,0,2),
          legend_labels = c("Min", "Avg", "Max"))
@@ -172,7 +251,7 @@ pca <- PCA(t(dCT.2), graph = F)
 
 
 fviz_pca_ind(pca,
-             geom.ind = "point",
+             #geom.ind = "point",
              pointsize=4, pointshape=21,
              fill.ind = amostras$Condition,
              mean.point=F,
@@ -182,5 +261,35 @@ fviz_pca_ind(pca,
   theme_classic()+
   scale_fill_manual(values=cores)+ #legenda
   scale_color_manual(values=cores)
+```
+
+```{r}
+EnhancedVolcano(fc_ssa.grave,
+                lab=rownames(fc_ssa.grave),
+                x="log2fc",
+                y="padj", FCcutoff = 1, pCutoff = 0.05,
+                title = "Sin signo alarma vs Grave", 
+                ylim=c(0,5))
+                #xlim=c(-7.5,7.5))
+
+EnhancedVolcano(fc_ssa.sa,
+                lab=rownames(fc_ssa.grave),
+                x="log2fc",
+                y="pval", FCcutoff = 1, pCutoff = 0.05)
+
+EnhancedVolcano(fc_grave.sa,
+                lab=rownames(fc_ssa.grave),
+                x="log2fc",
+                y="pval", FCcutoff = 1, pCutoff = 0.05,
+                title="Grave vs SA")
+
+```
+
+
+```{r}
+fc_ssa.grave %>% ggplot(aes(log2fc, rownames(.), fill=padj<0.05))+
+  geom_col()+
+  scale_fill_manual(values=c('grey', 'red4'), name="Significativo", labels=c("N.S", "*P adj <0.05"))+
+  labs(y="miRNA", title= "SSA vs Grave")
 ```
 

@@ -1,0 +1,130 @@
+---
+title: "Grupos unidos"
+author: "Gabriel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+Analise a partir dos valores de CTs.
+Unir grupos SA e SSA e remover outliers.
+Realizar comparações Grave x Não-graves
+
+
+CTs.full já possui os dados normalizados e incluidos as médias nos valores ausentes
+dCT.2 já está correto como 2^-dCt
+```{r}
+#objeto com a selecao das cores gerais
+cores.2 <- c( "black", "blue")
+```
+
+##Dendograma
+```{r}
+dist <- dist(t(dCT.2))
+hc <- hclust(dist)
+dend <- as.dendrogram(hc)
+#plot(dend)
+
+dend %>% 
+  color_labels(labels = colnames(dCT.2[1:4]), col=cores[1]) %>%
+  color_labels(labels = colnames(dCT.2[5:8]) , col=cores[2]) %>%
+  color_labels(labels = colnames(dCT.2[9:12]), col=cores[3]) %>%
+  plot() 
+legend("topright",
+       legend=c("Grave", "Con Signo", "Sin Signo"),
+       col=cores,
+       pch=c(20,20,20), bty = "n", pt.cex = 1.5, cex = .8)
+
+```
+
+
+#Limpeza
+```{r}
+#dCT2.limpo <- dCT.2 %>% dplyr::select(-SA.3_P, -SA.2a_P, -SSA.1_P) #PCA BOM, apenas 1 miRNA DEmiR
+dCT2.limpo <- dCT.2 %>% dplyr::select(-SA.4_P, -SSA.1_P, -SA.3_P, -SA.2a_P) 
+
+
+dist.limpo <- dist(t(dCT2.limpo))
+hc <- hclust(dist.limpo)
+dend <- as.dendrogram(hc)
+#plot(dend)
+
+dend %>% 
+  color_labels(labels = colnames(dCT2.limpo[1:4]), col=cores.2[1]) %>%
+  color_labels(labels = colnames(dCT2.limpo[5:ncol(dCT2.limpo)]), col=cores.2[2]) %>%
+  plot() 
+legend("topright",
+       legend=c("Grave", "nao grave"),
+       col=cores.2,
+       pch=c(20,20,20), bty = "n", pt.cex = 1.5, cex = .8)
+```
+
+```{r}
+#Clusterizacion
+#Criar dataframe com a identificacao de cada paciente em grupos
+amostras.2 <- data.frame(amostra=as.character(colnames(dCT2.limpo)))
+amostras.2 <- amostras.2 %>% mutate(Condition = ifelse(grepl("^G", amostra), "Grave", "Nao_Grave"))
+amostras.2 <- amostras.2 %>% column_to_rownames("amostra")
+```
+
+##Heatmap expressao
+```{r}
+pheatmap(dCT2.limpo,
+         border_color = NA,
+         cluster_cols = F, gaps_col = 4,
+         color=colorRampPalette(c("blue", "black", "yellow"))(100),
+         annotation_col = amostras.2,
+         annotation_colors = list(Condition = c(Grave = cores.2[1],
+                                                Nao_Grave = cores.2[2])),
+         show_colnames = T,
+         scale="row",
+         legend_breaks = c(-2,0,2),
+         legend_labels = c("Min", "Avg", "Max"))
+```
+
+##PCA
+```{r}
+pca.limpo <- PCA(t(dCT2.limpo), graph = F)
+
+
+fviz_pca_ind(pca.limpo,
+             #geom.ind = "point",
+             pointsize=4, pointshape=21,
+             fill.ind = amostras.2$Condition,
+             mean.point=F,
+             addEllipses = T, ellipse.type="confidence",
+             legend.title="Condition",
+             title="",repel = T)+
+  theme_classic()+
+  scale_fill_manual(values=cores.2)+ #legenda
+  scale_color_manual(values=cores.2)+
+  coord_cartesian(ylim=c(-8,8))
+```
+
+#Fold Change
+```{r}
+
+dCT.limpo <- dCT[,colnames(dCT2.limpo)] %>% as.data.frame()
+Avg.dCT.limpo <- data.frame(Grave = round((rowMeans(dCT.limpo[,1:4])),2),
+                      Nao_Grave = round((rowMeans(dCT.limpo[,5:ncol(dCT.limpo)])),2))
+Avg2dCT.limpo <- 2^-(Avg.dCT.limpo)
+
+
+
+fc_grave.naograve <- data.frame(FC_Grave_NaoGrave = Avg2dCT.limpo$Grave/Avg2dCT.limpo$Nao_Grave, row.names = rownames(Avg2dCT.limpo)) %>% 
+  mutate(pval = apply_t_test(dCT2.limpo, 1:4, 5:ncol(dCT2.limpo))[,1],
+         padj = apply_t_test(dCT2.limpo, 1:4, 5:ncol(dCT2.limpo))[,2])
+
+
+fc_grave.naograve$log2fc <- log2(fc_grave.naograve$FC_Grave_NaoGrave)
+```
+
+```{r}
+EnhancedVolcano(fc_grave.naograve,
+                x="log2fc",
+                y="pval",
+                lab=rownames(fc_grave.naograve),
+                FCcutoff = 1,
+                pCutoff = .05,
+                xlim = c(-8,8),
+                ylim=c(0,5))
+```
+
