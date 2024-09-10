@@ -48,20 +48,42 @@ dend <- as.dendrogram(hc)
 #plot(dend)
 
 dend %>% 
-  color_labels(labels = colnames(dCT2.limpo[1:4]), col=cores.2[1]) %>%
-  color_labels(labels = colnames(dCT2.limpo[5:ncol(dCT2.limpo)]), col=cores.2[2]) %>%
+  color_labels(labels = colnames(dCT2.limpo[1:4]), col=cores_cba[-2]) %>%
+  color_labels(labels = colnames(dCT2.limpo[5:ncol(dCT2.limpo)]), col=cores_cba[-2]) %>%
   plot() 
 legend("topright",
-       legend=c("Grave", "nao grave"),
-       col=cores.2,
+       legend=c("DHF", "DF"),
+       col=cores_cba[-2],
        pch=c(20,20,20), bty = "n", pt.cex = 1.5, cex = .8)
+```
+
+##Distancia euclidiana
+```{r}
+dist.matrix <- as.matrix(dist.limpo)
+pheatmap(dist.matrix,
+         color=colorRampPalette(c("white", "blue"))(50),
+         scale = "none",
+         border_color = NA)
+```
+
+##Correlação
+```{r}
+breaksList = seq(-1,1, by = 0.02)
+
+pheatmap(cor(dCT2.limpo, method = "spearman"),
+         #color=colorRampPalette(c("blue", "black", "yellow"))(100),
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "PRGn")))(length(breaksList)), # Defines the vector of colors for the legend (it has to be of the same lenght of breaksList)
+         breaks = breaksList,
+         border=NA,
+         cluster_rows = T,
+         cluster_cols = T)
 ```
 
 ```{r}
 #Clusterizacion
 #Criar dataframe com a identificacao de cada paciente em grupos
 amostras.2 <- data.frame(amostra=as.character(colnames(dCT2.limpo)))
-amostras.2 <- amostras.2 %>% mutate(Condition = ifelse(grepl("^G", amostra), "Grave", "Nao_Grave"))
+amostras.2 <- amostras.2 %>% mutate(Condition = ifelse(grepl("^G", amostra), "DHF", "DF"))
 amostras.2 <- amostras.2 %>% column_to_rownames("amostra")
 ```
 
@@ -70,33 +92,40 @@ amostras.2 <- amostras.2 %>% column_to_rownames("amostra")
 pheatmap(dCT2.limpo,
          border_color = NA,
          cluster_cols = F, gaps_col = 4,
-         color=colorRampPalette(c("blue", "black", "yellow"))(100),
+         color=colorRampPalette(c('#175290','#55a1fa', 'white','#fe0131', 'darkred'))(100),
+         #color=viridis::inferno(100),
          annotation_col = amostras.2,
-         annotation_colors = list(Condition = c(Grave = cores.2[1],
-                                                Nao_Grave = cores.2[2])),
-         show_colnames = T,
+         annotation_colors = list(Condition = c(DHF = cores_cba[3],
+                                                DF = cores_cba[1])),
+         show_colnames = F,
          scale="row",
          legend_breaks = c(-2,0,2),
          legend_labels = c("Min", "Avg", "Max"))
 ```
 
+
+
 ##PCA
 ```{r}
 pca.limpo <- PCA(t(dCT2.limpo), graph = F)
 
-
+pdf('Figuras_subset/pca.pdf', width = 6 ,height = 4)
 fviz_pca_ind(pca.limpo,
-             #geom.ind = "point",
+             geom.ind = "point",
              pointsize=4, pointshape=21,
-             fill.ind = amostras.2$Condition,
+               fill.ind = amostras.2$Condition,
              mean.point=F,
              addEllipses = T, ellipse.type="confidence",
              legend.title="Condition",
              title="",repel = T)+
   theme_classic()+
-  scale_fill_manual(values=cores.2)+ #legenda
-  scale_color_manual(values=cores.2)+
+  scale_fill_manual(values=cores_cba[-2])+ #legenda
+  scale_color_manual(values=cores_cba[-2])+
   coord_cartesian(ylim=c(-8,8))
+dev.off()
+ggsave('Figuras_subset/pca.png', width = 6 ,height = 4)
+
+
 ```
 
 #Fold Change
@@ -115,16 +144,423 @@ fc_grave.naograve <- data.frame(FC_Grave_NaoGrave = Avg2dCT.limpo$Grave/Avg2dCT.
 
 
 fc_grave.naograve$log2fc <- log2(fc_grave.naograve$FC_Grave_NaoGrave)
+
+DEmiR <-  fc_grave.naograve %>% filter(pval <0.05) %>% rownames_to_column("hsa_mir") %>% mutate(miR = gsub("hsa-", "", .$hsa_mir))
 ```
 
 ```{r}
+keyvals <- ifelse(fc_grave.naograve$pval > 0.05, "gray", 
+                  ifelse(fc_grave.naograve$log2fc > 0.5, "#fe0131",
+                         ifelse(fc_grave.naograve$log2fc   < -0.5, "#65156EFF", "gray")))
+
+keyvals[is.na(keyvals)] <- "gray"
+names(keyvals)[keyvals == "#fe0131"] <- "Up-regulated" #"#FCA50AFF"
+names(keyvals)[keyvals == "gray"] <- "Not significant"
+names(keyvals)[keyvals == "#65156EFF"] <- "Down-regulated"# "#420A68FF"
+
+
+
+pdf('Figuras_subset/volcano (p nominal).pdf', width = 8, height = 5)
 EnhancedVolcano(fc_grave.naograve,
                 x="log2fc",
                 y="pval",
+                #selectLab = rownames(fc_grave.naograve)[which(names(keyvals) %in% c('Up-regulated', 'Down-regulated'))],
+                colCustom = keyvals,
                 lab=rownames(fc_grave.naograve),
+                title=NULL,
+                subtitle = NULL,
                 FCcutoff = 1,
                 pCutoff = .05,
-                xlim = c(-8,8),
-                ylim=c(0,5))
+                xlim = c(-2,8),
+                ylim=c(0,5),
+                max.overlaps = Inf, drawConnectors = T)+
+  theme_bw()+
+  annotate("rect", xmin = 1, xmax = Inf,
+           ymin = 1.30103, ymax = Inf,
+           alpha = .1, fill = "#fe6161")
+  
+dev.off()
+ggsave('Figuras_subset/volcano (p nominal).png', width = 6, height = 5)
+```
+
+```{r}
+library(multiMiR)
+
+mirtar <- read.xlsx("E:/Doutorado/Bioinformática/hsa_MTI.xlsx")
+targetscan <- read.csv("E:/Doutorado/Bioinformática/Targetscan_Predicted_Targets_Context_Scores.default_predictions.txt", sep="\t")
+```
+
+#Targetscan
+```{r}
+targetscan <- targetscan %>% dplyr::select(Target = Gene.Symbol, miRNA = miRNA, Score = context...score) %>% mutate(Database = "Targetscan")
+targetscan$Target <- toupper(targetscan$Target)
+
+
+significant_targetscan <- targetscan %>% filter(miRNA %in% DEmiR$hsa_mir)
+significant_targetscan <- distinct(significant_targetscan, Target, miRNA, .keep_all = T)
+
+min(table(significant_targetscan$miRNA))
+
+targetscan.top <- significant_targetscan %>% 
+  group_by(miRNA) %>% 
+  slice_min(Score, n=10)
+```
+
+#MirDB
+```{r}
+mirdb <- get_multimir(org="hsa",
+                      table = "mirdb",
+                      mirna = DEmiR$hsa_mir)
+mirdb <- mirdb@data
+mirdb <- mirdb %>% dplyr::select(Target = target_symbol, miRNA = mature_mirna_id, Score = score, Database = database)
+mirdb$Target <- toupper(mirdb$Target)
+
+significant_mirdb <- mirdb %>% filter(miRNA %in% DEmiR$hsa_mir)
+significant_mirdb <- distinct(significant_mirdb, Target, miRNA, .keep_all = T)
+
+table(significant_mirdb$miRNA)
+mirdb.top <- significant_mirdb %>% 
+  group_by(miRNA) %>% 
+  slice_max(Score, n=10)
+```
+
+#MirTAR
+```{r}
+mirtar <- mirtar %>% dplyr::select(Target = Target.Gene, miRNA = miRNA) %>% mutate(Database="mirTar")
+mirtar <- distinct(mirtar)
+
+mirtar$Target <- toupper(mirtar$Target)
+
+significant_mirtar <- mirtar %>% filter(miRNA %in% DEmiR$hsa_mir)
+significant_mirtar <- distinct(significant_mirtar, Target, miRNA, .keep_all = T)
+
+table(significant_mirtar$miRNA)
+write.xlsx(significant_mirtar, "significant mirtar.xlsx")
+```
+
+```{r}
+venn <- BioVenn::draw.venn(list_x = significant_mirdb$Target, list_y = significant_targetscan$Target, list_z = significant_mirtar$Target,
+                   xtitle = "mirdb", ytitle = "targetscan", ztitle = "mirtar")
+
+venn$xyz
+
+targets <- rbind(mirdb.191, targetscan.191, mirtar.191) %>% 
+  filter(!Target %in% c(venn$x_only, venn$y_only, venn$z_only))
+```
+
+```{r}
+target_counts <- significant_mirtar %>%
+  #filter(!miRNA %in% "hsa-miR-21-5p") %>%  ###Remover miR-21 do filtro de >3 miR/alvo
+  group_by(Target) %>%
+  summarise(miRNA_count = n_distinct(miRNA))
+
+filtered_targets <- target_counts %>% filter(miRNA_count >= 3)
+nrow(filtered_targets)
+
+filtered_mirtar <- significant_mirtar %>%
+#  filter(!miRNA %in% "hsa-miR-21-5p") %>% ###Remover miR-21 do filtro de >3 miR/alvo
+  filter(Target %in% filtered_targets$Target)
+
+write.xlsx(filtered_mirtar, "miRTAR targets filtered (sem miR-21).xlsx")
+```
+
+
+```{r}
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(GOplot)
+```
+```{r}
+mirtar_GO <- enrichGO(gene = filtered_mirtar$Target,
+         OrgDb = 'org.Hs.eg.db',
+         ont = "all",
+         keyType = 'SYMBOL')
+
+mirtar_GO.res <- mirtar_GO@result
+
+```
+
+```{r}
+barplot.df_dhf <- fc_grave.naograve %>% ggplot(aes(log2fc, rownames(.), fill=pval<0.05))+
+  geom_col()+
+  scale_fill_manual(values=c('grey50', 'orange'), name=NULL, labels=c("N.S.", "*P < 0.05"))+
+  labs(x='Log2 (Fold Change)', y=NULL)+
+  theme_classic()+
+  geom_vline(xintercept = 0, color='grey30')+
+  theme(axis.text = element_text(size=8, color='black'))
+
+ggsave("Figuras_subset/Barplot miR Sig.png", width = 5, height = 6)
+```
+
+
+```{r}
+ggarrange(volcano.df_dhf, barplot.df_dhf, pca.df_dhf, widths)
+```
+
+#Dados clinicos
+```{r}
+clin <- read.xlsx("Dados clinicos san francisco.xlsx")
+clin$NÚMERO.DE.DOCUMENTO.Sin.puntos.o.comas <- NULL
+rownames(clin) <- NULL
+clin <- clin %>% column_to_rownames("GRUPO")
+clin <- t(clin)
+
+clin <- data.frame(row.names = rownames(clin) ,apply(clin,2, function(x){as.numeric(x)}))
+
+clin.grave <- clin[,1:3]
+clin.csa <- clin[,4:6]
+clin.ssa <- clin[,7:9]
+
+clin.grave <- as.data.frame(t(apply(clin.grave, 1, replace_na_with_row_mean)))
+clin.csa <- as.data.frame(t(apply(clin.csa, 1, replace_na_with_row_mean)))
+clin.ssa <- as.data.frame(t(apply(clin.ssa, 1, replace_na_with_row_mean)))
+
+
+#Adicionar média como X4 com um ruido aleatorio de +- 2,5% do valor de media
+clin.grave$G4 <- rowMeans(clin.grave) * runif(1, min=0.975, max=1.025)
+clin.csa$SA4 <- rowMeans(clin.csa) * runif(1, min=0.975, max=1.025)
+clin.ssa$SSA4 <- rowMeans(clin.ssa) * runif(1, min=0.975, max=1.025)
+
+
+clin <- cbind(clin.grave, clin.csa, clin.ssa) %>% na.omit()
+clin <- apply(clin, 2, function(x){round(x,2)}) %>% as.data.frame()
+
+clin.selected <- clin %>% dplyr::select(amostras_mantidas[[1]])
+
+##Amostras_mantidas estao no script de cba
+###é o colnames do dct2.limpo
+clin.final <- clin %>% dplyr::select(amostras_mantidas[[1]])
+```
+fazer melt do clin.final
+  separar o nome de cada linha entre o nome e momento (leucocito.egreso / linfocito.ultimo.reporte)
+    Basicamente: separar a partir do primeiro ponto
+        Criar coluna nome do exame, e coluna momento do exame
+            Avaliar a variacao dos grupos entre os momentos
+            
+```{r}
+clin.final <- clin.final %>% rownames_to_column(var="exame")
+clin.final$tempo <- sub(".*\\.", "", clin.final$exame) %>% tolower()
+clin.final$exame <- sub("\\..*", "", clin.final$exame) 
+
+clin.final_melt <- melt(clin.final, id.vars = c('exame', 'tempo'), variable.name = 'Amostra')
+
+clin.final_melt <- clin.final_melt %>% mutate(Grupo = ifelse(grepl("^G", Amostra), "DHF", "DF"))
+clin.final_melt$tempo <- factor(clin.final_melt$tempo)
+```
+            
+##Graficos
+###Monocitos
+```{r}
+celula <- 'Monocitos'
+monocito <- clin.final_melt %>% filter(exame==celula) %>% 
+  ggplot(aes(Grupo, value, fill=tempo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+  labs(x=NULL, y=paste(celula, "(10^3/uL)"))+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  geom_bracket(xmin=1.825, xmax=2.2, y.position = 3.1, label="**", inherit.aes = F, label.size = 6)+
+  geom_bracket(xmin=.85, xmax=1.785, y.position = 3.1, label="*", inherit.aes = F, label.size = 6)+
+  coord_cartesian(ylim=c(0,3.5), expand = F, xlim=c(0.5,2.5))
+
+aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% PostHocTest()
+#Interação Grupo:tempo
+## DHF:Ingreso vs DF:Ingreso
+## DF:reporte vs DHF:Ingreso
+## DHF:reporte vs DF:reporte
+
+```
+
+###Leucocitos
+```{r}
+celula <- 'Leucocitos'
+leucocitos <- clin.final_melt %>% filter(exame==celula) %>% 
+  ggplot(aes(Grupo, value, fill=tempo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+   labs(x=NULL, y=paste(celula, "(10^3/uL)"))+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  geom_bracket(xmin=1.825, xmax=2.2, y.position = 13, label="*", inherit.aes = F, label.size = 6)+
+  geom_bracket(xmin=.85, xmax=1.785, y.position = 13, label="*", inherit.aes = F, label.size = 6)+
+  coord_cartesian(ylim=c(0,15), expand = F, xlim=c(0.5,2.5))
+
+aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% PostHocTest()
+#Interação Grupo:tempo
+## DHF:ingreso vs DHF:ingreso
+## DHF:reporte vs DHF:ingreso
+```
+
+###Linfocitos
+```{r}
+celula <- 'Linfocitos'
+linfocitos <- clin.final_melt %>% filter(exame==celula) %>% 
+  ggplot(aes(Grupo, value, fill=tempo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+  labs(x=NULL, y=paste(celula, "(10^3/uL)"))+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  geom_bracket(xmin=1.8, xmax=2.2, y.position = 3.5, label="**", inherit.aes = F, label.size = 6)+
+  coord_cartesian(ylim = c(0,5), expand=F, xlim=c(0.5, 2.5))
+
+aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% PostHocTest()
+#Interação Grupo:tempo
+## DHF:reporte vs DHF:ingreso
+## DHF:reporte vs DF:reporte
+```
+
+###Neutrófilos
+```{r}
+celula <- 'Neutrófilos'
+neutrofilos <- clin.final_melt %>% filter(exame==celula) %>% 
+  ggplot(aes(Grupo, value, fill=tempo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+  labs(x=NULL, y=paste(celula, "(10^3/uL)"))+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  coord_cartesian(ylim = c(0,10), expand = F, xlim=c(0.5,2.5))
+  annotate(geom="text", label='ENTRADA \n vs CRITICO', x=1.5, y=6, size=12)
+
+aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% summary()
+```
+
+### Hemoglobina
+```{r}
+hemoglobina <- clin.final_melt %>% filter(exame=="Hemoglobina") %>% 
+  ggplot(aes(Grupo, value, fill=tempo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+  labs(x=NULL, y="Hemoglobina")+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  coord_cartesian(ylim = c(0,17), expand = F, xlim=c(0.5,2.5))
+aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == 'Hemoglobina')) %>% summary()
+```
+
+### Hematocrito
+```{r}
+hematocrito <- clin.final_melt %>% filter(exame=="Hematocrito(%)") %>% 
+  ggplot(aes(Grupo, value, fill=tempo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+  labs(x=NULL, y="Hematocrito (%)")+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  coord_cartesian(ylim = c(0,50), expand = F, xlim=c(0.5,2.5))
+
+aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == "Hematocrito(%)")) %>% PostHocTest()
+```
+
+
+### Plaquetas
+
+```{r}
+celula <- 'Recuento'
+plaquetas.plot <- clin.final_melt %>% filter(exame==celula) %>% 
+  ggplot(aes(Grupo, value, fill=tempo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+   labs(x=NULL, y="Plaquetas (10^3/uL)")+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  coord_cartesian(ylim = c(0,200000), expand = F, xlim=c(0.5,2.5))+
+  geom_bracket(xmin=1.8, xmax=2.2, y.position = 140000, inherit.aes = F, label='*', label.size = 6)
+ggsave("Plaquetas.png", width = 6, height = 5)
+
+aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% summary()
+#Sem interação
+## DHF tempo
+```
+
+###ALT
+```{r}
+alt.plot <- clin.final_melt %>% filter(exame=="ALT") %>% 
+  ggplot(aes(Grupo, value, fill=Grupo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], guide='none')+
+  labs(x=NULL, y="ALT")+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  coord_cartesian(ylim = c(0,2250), expand = F, xlim=c(0.5,2.5))
+  #annotate(geom="text", label='ENTRADA \n vs CRITICO', x=1.5, y=6, size=12)
+
+t.test(value~Grupo, data= filter(clin.final_melt, exame == 'ALT'))
+```
+
+###AST
+```{r}
+ast.plot <- clin.final_melt %>% filter(exame=="AST") %>% 
+  ggplot(aes(Grupo, value, fill=Grupo))+
+  stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
+  geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
+  scale_fill_manual(values=cores_cba[-2], guide='none')+
+  labs(x=NULL, y="AST")+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  coord_cartesian(ylim = c(0, 5000), expand = F, xlim=c(0.5,2.5))
+  #annotate(geom="text", label='ENTRADA \n vs CRITICO', x=1.5, y=6, size=12)
+
+t.test(value~Grupo, data= filter(clin.final_melt, exame == 'AST'))
+```
+
+####GGarrange
+```{r}
+pdf("Figuras_subset/Painel Celulas.pdf", width = 6, height = 4)
+ggarrange(monocito, leucocitos, linfocitos, neutrofilos, plaquetas.plot, 
+          #hemoglobina, hematocrito, ast.plot, alt.plot, 
+          labels="AUTO", font.label = list(size=12),
+          common.legend = T, legend = "none")
+dev.off()
+
+ggsave("Celulas.png", width = 8, height = 8, bg='white')
+```
+
+
+###Delta Celulas
+```{r}
+celulas.delta <- clin.final %>% filter(exame %in% c('Monocitos', 'Leucocitos', 'Linfocitos', 'Neutrófilos', 'Recuento'))
+#Requento é requento plaquetario
+
+Leucocito <-  celulas.delta[2,c(-1,-10)] - celulas.delta[1,c(-1,-10)]
+Linfocitos <-  celulas.delta[4,c(-1,-10)] - celulas.delta[3,c(-1,-10)]
+Monocitos <-  celulas.delta[6,c(-1,-10)] - celulas.delta[5,c(-1,-10)]
+Neutrofilos <-  celulas.delta[8,c(-1,-10)] - celulas.delta[7,c(-1,-10)]
+Plaquetas <- celulas.delta[10,c(-1,-10)] - celulas.delta[9,c(-1,-10)]
+
+delta.celulas <- rbind(Leucocito, Linfocitos, Monocitos, Neutrofilos, Plaquetas) %>% mutate(Celula = c("Delta Leucocito", "Delta Linfocito", "Delta Monocito", "Delta Neutrofilo", 'Delta Plaquetas'))
+
+rownames(delta.celulas) <- NULL
+delta.celulas <- delta.celulas %>% column_to_rownames("Celula")
+```
+
+```{r}
+unique(clin.final_melt$exame)
+tbl.dsc <- clin.final_melt %>% filter(!exame %in% c('IMC', 'FC', 'Tensión', 'Tension', 'FR', 'SaO2', 'Temperatura')) %>% 
+  group_by(Grupo, exame, tempo) %>% get_summary_stats(value, type='mean_sd')
+
+tbl.wide <- tbl.dsc %>% dplyr::select(-variable, -n) %>% 
+  pivot_wider(names_from = Grupo, values_from = c(mean, sd)) %>% 
+  mutate(exame = gsub('Recuento', 'Plaquetas', tbl.wide$exame))
+  
+write.xlsx(tbl.wide, 'Tabela medias dados clinicos.xlsx')
 ```
 
