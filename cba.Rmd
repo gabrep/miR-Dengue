@@ -1,0 +1,350 @@
+---
+title: "Untitled"
+author: "Gabriel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+cba <- read.xlsx('CBA-final02-Aug-2024.wsp FlowJo table.xlsx')
+cba <- cba[9:32,]
+cba <- cba %>% mutate(Sample = gsub("-.*", "", X1))
+
+il12 <- cba %>% group_by(Sample) %>% summarise(mean(`Calculated.CC.Human.IL-12p70`)) %>% mutate(Grupo = c(rep("Control", 3), rep('Grave', 3), rep('SA', 3), rep('SSA', 3))) %>% rename('IL12'=2)
+
+il8 <-  cba %>% group_by(Sample) %>% summarise(mean(`Calculated.CC.Human.IL-8`))%>% mutate(Grupo = c(rep("Control", 3), rep('Grave', 3), rep('SA', 3), rep('SSA', 3))) %>% rename("IL8" = 2)
+
+il10 <-  cba %>% group_by(Sample) %>% summarise(mean(`Calculated.CC.Human.IL-10`))%>% mutate(Grupo = c(rep("Control", 3), rep('Grave', 3), rep('SA', 3), rep('SSA', 3))) %>% rename("IL10" = 2)
+
+il6 <-  cba %>% group_by(Sample) %>% summarise(mean(`Calculated.CC.Human.IL-6`))%>% mutate(Grupo = c(rep("Control", 3), rep('Grave', 3), rep('SA', 3), rep('SSA', 3))) %>% rename("IL6" = 2)
+
+il1 <-  cba %>% group_by(Sample) %>% summarise(mean(`Calculated.CC.Human.IL-1β`))%>% mutate(Grupo = c(rep("Control", 3), rep('Grave', 3), rep('SA', 3), rep('SSA', 3))) %>% rename("IL1b"=2)
+
+tnf <-  cba %>% group_by(Sample) %>% summarise(mean(Calculated.CC.Human.TNF))%>% mutate(Grupo = c(rep("Control", 3), rep('Grave', 3), rep('SA', 3), rep('SSA', 3))) %>% rename("TNF" = 2)
+
+
+cba.res <- data.frame(Grupo = tnf$Grupo, Sample = tnf$Sample,
+                      TNF = tnf$TNF)
+
+cba.res <- left_join(cba.res, il12)
+cba.res <- left_join(cba.res, il8)
+cba.res <- left_join(cba.res, il10)
+cba.res <- left_join(cba.res, il6)
+cba.res <- left_join(cba.res, il1)
+
+cba.res_control <- filter(cba.res, Grupo == "Control")
+cba.res_control[4,] <- c('Control', 'C0', colMeans(cba.res_control[,3:8]))
+
+cba.res_grave <- filter(cba.res, Grupo == "Grave")
+cba.res_grave[4,] <- c('Grave', 'G4',colMeans(cba.res_grave[,3:8])) %>% as.numeric()
+
+cba.res_sa <- filter(cba.res, Grupo == "SA")
+cba.res_sa[4,] <- c('SA', 'SA4',colMeans(cba.res_sa[,3:8]))
+
+cba.res_ssa <- filter(cba.res, Grupo == "SSA")
+cba.res_ssa[4,] <- c('SSA', 'SSA4',colMeans(cba.res_ssa[,3:8]))
+
+cba.res <- rbind(cba.res_control, cba.res_grave, cba.res_sa, cba.res_ssa)
+cba.res[3:8] <- lapply(cba.res[3:8], function(y){as.numeric(y)})
+cba.res[3:8] <- round(cba.res[,3:8],2)
+
+cba.melt <- reshape2::melt(cba.res, id.vars = c("Grupo", "Sample"))
+cba.melt$log <- log(cba.melt$value)
+
+```
+
+#Graficos Brutos
+##IL12
+```{r}
+il12.plot <- cba.melt %>% filter(variable == "IL12") %>% ggplot(aes(Grupo, log))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.7)+
+  labs(y='log(IL12) (pg/uL)', x=NULL)+
+  geom_point(position = position_jitter(width = .075), shape=21, size=2.25, fill='white', alpha=.75)+
+  theme_classic()+
+  theme(axis.text = element_text(size=11, color='black'))+
+  annotate(geom='text', label='*', x=2, y=2, size=6)+
+  coord_cartesian(xlim=c(.5, 4.5), expand = F, ylim=c(0,2.25))
+
+aov(value~Grupo, data = filter(cba.melt, variable == "IL12")) %>% PostHocTest()
+```
+
+##IL10
+```{r}
+il10.plot <- cba.melt %>% filter(variable == "IL10") %>% ggplot(aes(Grupo, log))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.7)+
+  labs(y='log(IL10) (pg/uL)', x=NULL)+
+  geom_point(position = position_jitter(width = .075), shape=21, size=2.25, fill='white', alpha=.75)+
+  theme_classic()+
+  theme(axis.text = element_text(size=11, color='black'))+
+  geom_bracket(xmin=1, xmax=2, y.position = 7, label='*', label.size = 6, inherit.aes = F)+
+  coord_cartesian(xlim=c(.5, 4.5), expand = F, ylim=c(0,8.25))
+
+aov(log~Grupo, data = filter(cba.melt, variable == "IL10")) %>% PostHocTest()
+```
+
+##IL8
+```{r}
+il8.plot <- cba.melt %>% filter(variable == "IL8") %>% ggplot(aes(Grupo, log))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.7)+
+  labs(y='log(IL8)', x=NULL)+
+  geom_point(position = position_jitter(width = .075), shape=21, size=2.25, fill='white', alpha=.75)+
+  theme_classic()+
+  theme(axis.text = element_text(size=11, color='black'))+
+  geom_bracket(xmin=c(1, 2.05), xmax = c(1.95, 3), y.position = c(6,6), label='*', label.size = 6, inherit.aes = F)+
+  coord_cartesian(xlim=c(.5, 4.5), expand = F, ylim=c(0,7))
+
+aov(log~Grupo, data = filter(cba.melt, variable == "IL8")) %>% PostHocTest()
+```
+
+##IL6
+```{r}
+il6.plot <- cba.melt %>% filter(variable == "IL6") %>% ggplot(aes(Grupo, log))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.7)+
+  labs(y='log(IL6) (pg/uL)', x=NULL)+
+  geom_point(position = position_jitter(width = .075), shape=21, size=2.25, fill='white', alpha=.75)+
+  theme_classic()+
+  theme(axis.text = element_text(size=11, color='black'))+
+  geom_bracket(xmin=1, xmax=2, y.position = 9.35, label='p = 0.0536', label.size = 3, inherit.aes = F)+
+  coord_cartesian(xlim=c(.5, 4.5), expand = F, ylim=c(0,10))
+
+aov(log~Grupo, data = filter(cba.melt, variable == "IL6")) %>% PostHocTest()
+```
+
+##IL1b
+```{r}
+il1b.plot <- cba.melt %>% filter(variable == "IL1b") %>% ggplot(aes(Grupo, log))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.7)+
+  labs(y='log(IL1b) (pg/uL)', x=NULL)+
+  geom_point(position = position_jitter(width = .075), shape=21, size=2.25, fill='white', alpha=.75)+
+  theme_classic()+
+  theme(axis.text = element_text(size=11, color='black'))+
+  coord_cartesian(xlim=c(.5, 4.5), expand = F, ylim=c(0,2.5))
+  
+aov(log~Grupo, data = filter(cba.melt, variable == "IL1b")) %>% summary()
+```
+
+##TNF
+```{r}
+tnf.plot <- cba.melt %>% filter(variable == "TNF") %>% ggplot(aes(Grupo, log))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.7)+
+  labs(y='log(TNF) (pg/uL)', x=NULL)+
+  geom_point(position = position_jitter(width = .075), shape=21, size=2.25, fill='white', alpha=.75)+
+  theme_classic()+
+  theme(axis.text = element_text(size=11, color='black'))+
+  coord_cartesian(xlim=c(.5, 4.5), expand = F, ylim=c(0,3))
+
+aov(log~Grupo, data = filter(cba.melt, variable == "TNF")) %>% summary()
+
+```
+
+```{r}
+ggarrange(il12.plot, il10.plot, il8.plot, il6.plot, il1b.plot, tnf.plot,
+          labels="AUTO",
+          nrow=3, ncol=2)
+ggsave("Painel CBA.png", width = 6, height = 8)
+```
+
+
+
+#Subset
+Apenas amostras permanecentes na analise de array
+```{r}
+colnames(dCT2.limpo)
+amostras_mantidas <- list(gsub("_P", "", colnames(dCT2.limpo)) %>% gsub("\\.", "", .))
+
+cba.res_mantidas <- filter(cba.res, Sample %in% amostras_mantidas[[1]])
+cba.res_mantidas <- cba.res_mantidas %>% column_to_rownames(var = "Sample")
+cba.res_mantidas$Grupo <- NULL
+
+cba.res_mantidas <- t(cba.res_mantidas)
+#DEmiR possui os miR diferenciais
+DEmiR_dct <- filter(dCT2.limpo, rownames(dCT2.limpo) %in% DEmiR$hsa_mir)
+colnames(DEmiR_dct) <- gsub("_P", "", colnames(DEmiR_dct)) %>% gsub("\\.", "", .)
+```
+
+#Correlação
+```{r}
+celulas.ingresso <- clin.final %>% filter(exame %in% c('Monocitos', 'Leucocitos', 'Linfocitos', 'Neutrófilos', 'Recuento') & tempo == 'ingreso')
+
+celulas.ingresso$exame <- sub('Recuento', 'Plaquetas', x=celulas.ingresso$exame)
+
+celulas.saida <- clin.final %>% filter(exame %in% c('Monocitos', 'Leucocitos', 'Linfocitos', 'Neutrófilos', 'Recuento') & tempo %in% c('reporte', 'critico'))
+celulas.saida$exame <- sub('Recuento', 'Plaquetas', x=celulas.saida$exame)
+
+celulasingresso <- celulas.ingresso %>% column_to_rownames("exame")
+celulasingresso$tempo <- NULL
+
+
+celulassaida <- celulas.saida %>% column_to_rownames("exame")
+celulassaida$tempo <- NULL
+
+matrix.cor <- as.matrix(rbind(cba.res_mantidas, DEmiR_dct, celulasingresso))
+rownames(matrix.cor) <- c("TNFa", "IL-12", "IL-8", "IL-10", "IL-6", 'IL-1b',
+                          "hsa-let-7i-5p", "hsa-miR-130a-3p", "hsa-miR-15a-5p", "hsa-miR-181d-5p", "hsa-miR-21-5p",   "hsa-miR-98-5p",
+                          'Leukocytes', 'Lymphocytes', 'Monocytes', 'Neutrophils', 'Platelets')
+
+library(corrplot)
+library(Hmisc)
+corr_dct.cba <- rcorr(t(matrix.cor), type = 'pearson')
+
+corrplot(cor(t(matrix.cor)))
+pdf('Figuras_subset/Figuras finais miRDengue/Correlacao miR-dados (pearson).pdf', width =8, height = 5)
+corrplot(corr_dct.cba$r[7:12,c(1:6, 13:17)], p.mat = corr_dct.cba$P[7:12, c(1:6, 13:17)], type='full', insig = 'label_sig', method='square', tl.col = 'black', tl.srt = 45, tl.cex=1.3)
+dev.off()
+
+corrplot(corr_dct.cba$r, type='full', p.mat = corr_dct.cba$P, insig = 'label_sig', method = 'square',
+         tl.col = 'black', tl.srt = 45, tl.cex=1.2)
+#ggsave('Figuras_subset/Correlação miR-CBA.png', width = 6, height = 6)
+```
+
+
+```{r}
+cores_cba <- c("#fe0131", "#55a1fa","#175290")
+```
+
+```{r}
+cba.mantidas <- t(cba.res_mantidas) %>% as.data.frame(.) %>% rownames_to_column(.,var='Amostra') %>% 
+  mutate(Grupo = ifelse(grepl("^G", Amostra), "DHF", "DF"))
+cba.mantidas <- melt(cba.mantidas, id_vars=c('Amostra', 'Grupo'))
+cba.mantidas <- cba.mantidas %>% mutate(log=log(.$value))
+```
+
+
+##IL12
+```{r}
+pdf("IL-12.pdf", width = 3, height = 4)
+il12.plot <- cba.mantidas %>% filter(variable == "IL12") %>% ggplot(aes(Grupo, value, fill=Grupo))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black')+
+  geom_point(position = position_jitter(width = .05, seed=25), shape=21, size=3, alpha=.5)+
+  labs(y='IL-12 (pg/uL)', x=NULL)+
+  scale_fill_manual(values=cores_cba[-2], guide='none')+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  geom_bracket(xmin=1, xmax=2, y.position = 7.25, inherit.aes = F, label='*', label.size = 6)+
+  coord_cartesian(xlim=c(.5, 2.5), expand = F, ylim=c(0,9))
+dev.off()
+
+t.test(value~Grupo, data = filter(cba.mantidas, variable == "IL12"), alternative='l')
+```
+
+##IL10
+```{r}
+pdf("IL-10.pdf", width = 3, height = 4)
+il10.plot <- cba.mantidas %>% filter(variable == "IL10") %>% ggplot(aes(Grupo, value, fill=Grupo))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black')+
+  geom_point(position = position_jitter(width = .05, seed=25), shape=21, size=3, alpha=.5)+
+  labs(y='IL-10 (pg/uL)', x=NULL)+
+  scale_fill_manual(values=cores_cba[-2], guide='none')+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  #geom_bracket(xmin=1, xmax=2, y.position = 7.25, inherit.aes = F, label='*', label.size = 6)+
+  coord_cartesian(xlim=c(.5, 2.5), expand = F, ylim=c(0,700))
+dev.off()
+
+t.test(value~Grupo, data = filter(cba.mantidas, variable == "IL10"), alternative='l')
+```
+
+##IL8
+```{r}
+pdf("IL-8.pdf", width = 3, height = 4)
+il8.plot <- cba.mantidas %>% filter(variable == "IL8") %>% ggplot(aes(Grupo, value, fill=Grupo))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black')+
+  geom_point(position = position_jitter(width = .05, seed=25), shape=21, size=3, alpha=.5)+
+  labs(y='IL-8 (pg/uL)', x=NULL)+
+  scale_fill_manual(values=cores_cba[-2], guide='none')+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  #geom_bracket(xmin=1, xmax=2, y.position = 7.25, inherit.aes = F, label='*', label.size = 6)+
+  coord_cartesian(xlim=c(.5, 2.5), expand = F, ylim=c(0,350))
+dev.off()
+
+t.test(value~Grupo, data = filter(cba.mantidas, variable == "IL8"), alternative='less')
+```
+
+##IL6
+```{r}
+pdf("IL-6.pdf", width = 3, height = 4)
+#l6.plot <- 
+cba.mantidas %>% filter(variable == "IL6") %>% 
+  ggplot(aes(Grupo, log(value), fill=Grupo))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black')+
+  geom_point(position = position_jitter(width = .05, seed=25), shape=21, size=3, alpha=.5)+
+  labs(y='log(IL-6) (pg/uL)', x=NULL)+
+  scale_fill_manual(values=cores_cba[-2], guide='none')+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  #geom_bracket(xmin=1, xmax=2, y.position = 7.25, inherit.aes = F, label='*', label.size = 6)+
+  #scale_y_break(c(10,1500), scales = c(3,1), expand = F, space = .05)+
+  #scale_y_continuous(limits = c(0, 4000), breaks = seq(0, 4000, by = 200))
+  coord_cartesian(xlim=c(.5, 2.5), ylim=c(0,12), expand = F)
+dev.off()
+
+t.test(value~Grupo, data = filter(cba.mantidas, variable == "IL6"), alternative='less')
+wilcox.test(value~Grupo, data = filter(cba.mantidas, variable == "IL6"))
+```
+
+##IL1b
+```{r}
+pdf("IL-1b.pdf", width = 3, height = 4)
+il1.plot <- cba.mantidas %>% filter(variable == "IL1b") %>% ggplot(aes(Grupo, value, fill=Grupo))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black')+
+  geom_point(position = position_jitter(width = .05, seed=25), shape=21, size=3, alpha=.5)+
+  labs(y='IL-1b (pg/uL)', x=NULL)+
+  scale_fill_manual(values=cores_cba[-2], guide='none')+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  #geom_bracket(xmin=1, xmax=2, y.position = 7.25, inherit.aes = F, label='*', label.size = 6)+
+  #scale_y_break(c(10,2000), space = .25, scales = "free", expand = F)+
+  coord_cartesian(xlim=c(.5, 2.5), ylim=c(0,10), expand = F)
+dev.off()
+
+t.test(value~Grupo, data = filter(cba.mantidas, variable == "IL1b"), alternative='less')
+wilcox.test(value~Grupo, data = filter(cba.mantidas, variable == "IL1b"))
+```
+
+##TNF
+```{r}
+pdf("TNF.pdf", width = 3, height = 4)
+tnf.plot <- cba.mantidas %>% filter(variable == "TNF") %>% ggplot(aes(Grupo, value, fill=Grupo))+
+  stat_summary(fun.data=mean_sd, geom='errorbar', width=.2)+
+  stat_summary(fun=mean, geom='bar', width=.75, color='black')+
+  geom_point(position = position_jitter(width = .05, seed=25), shape=21, size=3, alpha=.5)+
+  labs(y='TNFa (pg/uL)', x=NULL)+
+  scale_fill_manual(values=cores_cba[-2], guide='none')+
+  theme_classic()+
+  theme(axis.text = element_text(size=12, color='black'))+
+  geom_bracket(xmin=1, xmax=2, y.position = 13, inherit.aes = F, label='*', label.size = 6)+
+  coord_cartesian(xlim=c(.5, 2.5), ylim=c(0,15), expand = F)
+dev.off()
+
+t.test(value~Grupo, data = filter(cba.mantidas, variable == "TNF"), alternative='less')
+wilcox.test(value~Grupo, data = filter(cba.mantidas, variable == "TNF"))
+```
+
+## GGArrange sig
+```{r}
+#São significativos, do cba e dados clinicos:
+sig.plot <- c('monocito', 'leucocitos', 'linfocitos', 'neutrofilos', 'plaquetas.plot')
+
+pdf("Painel poster.pdf", width = 8, height = 8.5)
+ggarrange(tnf.plot, il12.plot, il6.plot, il8.plot, il10.plot, il1.plot, monocito, leucocitos, linfocitos, neutrofilos, plaquetas.plot, ncol=3, nrow=4, labels = 'AUTO', common.legend = T, legend = 'right', font.label = list(size=12, face = 'plain'))
+
+pdf('Figuras_subset/Figuras finais miRDengue/Painel CBA.pdf', width = 6, height = 4)
+ggarrange(tnf.plot, il12.plot, il6.plot, il8.plot, il10.plot, il1.plot,
+          labels = 'AUTO', common.legend = T, legend = 'right', font.label = list(size=12))
+
+dev.off()
+
+```
+

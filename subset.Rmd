@@ -342,10 +342,13 @@ clin.final <- clin.final %>% rownames_to_column(var="exame")
 clin.final$tempo <- sub(".*\\.", "", clin.final$exame) %>% tolower()
 clin.final$exame <- sub("\\..*", "", clin.final$exame) 
 
+
 clin.final_melt <- melt(clin.final, id.vars = c('exame', 'tempo'), variable.name = 'Amostra')
 
 clin.final_melt <- clin.final_melt %>% mutate(Grupo = ifelse(grepl("^G", Amostra), "DHF", "DF"))
 clin.final_melt$tempo <- factor(clin.final_melt$tempo)
+
+clin.final_melt$grupo_tempo <- paste(clin.final_melt$Grupo,'-',clin.final$tempo)
 ```
             
 ##Graficos
@@ -366,10 +369,26 @@ monocito <- clin.final_melt %>% filter(exame==celula) %>%
   coord_cartesian(ylim=c(0,3.5), expand = F, xlim=c(0.5,2.5))
 
 aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% PostHocTest()
+clin.final_melt %>% filter(exame==celula) %>% dunn_test(value~grupo_tempo)
 #Interação Grupo:tempo
 ## DHF:Ingreso vs DF:Ingreso
 ## DF:reporte vs DHF:Ingreso
 ## DHF:reporte vs DF:reporte
+
+#ez_outcome <- 
+ezANOVA(data = filter(clin.final_melt, exame == celula),
+          dv = value,
+          wid = Amostra,
+          within = tempo,
+          between = Grupo,
+          type = 3,
+          detailed = T,
+          return_aov = T)
+
+anova_test(data = filter(clin.final_melt, exame == celula), 
+           dv = value,
+           wid = Amostra,
+           within = c(Grupo, tempo))
 
 ```
 
@@ -393,6 +412,8 @@ aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% PostH
 #Interação Grupo:tempo
 ## DHF:ingreso vs DHF:ingreso
 ## DHF:reporte vs DHF:ingreso
+
+clin.final_melt %>% filter(exame==celula) %>% dunn_test(value~grupo_tempo)
 ```
 
 ###Linfocitos
@@ -414,6 +435,8 @@ aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% PostH
 #Interação Grupo:tempo
 ## DHF:reporte vs DHF:ingreso
 ## DHF:reporte vs DF:reporte
+
+clin.final_melt %>% filter(exame==celula) %>% dunn_test(value~grupo_tempo)
 ```
 
 ###Neutrófilos
@@ -432,6 +455,8 @@ neutrofilos <- clin.final_melt %>% filter(exame==celula) %>%
   annotate(geom="text", label='ENTRADA \n vs CRITICO', x=1.5, y=6, size=12)
 
 aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% summary()
+
+clin.final_melt %>% filter(exame==celula) %>% dunn_test(value~grupo_tempo)
 ```
 
 ### Hemoglobina
@@ -447,6 +472,8 @@ hemoglobina <- clin.final_melt %>% filter(exame=="Hemoglobina") %>%
   theme(axis.text = element_text(size=12, color='black'))+
   coord_cartesian(ylim = c(0,17), expand = F, xlim=c(0.5,2.5))
 aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == 'Hemoglobina')) %>% summary()
+
+clin.final_melt %>% filter(exame=='Hemoglobina') %>% dunn_test(value~grupo_tempo)
 ```
 
 ### Hematocrito
@@ -463,6 +490,9 @@ hematocrito <- clin.final_melt %>% filter(exame=="Hematocrito(%)") %>%
   coord_cartesian(ylim = c(0,50), expand = F, xlim=c(0.5,2.5))
 
 aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == "Hematocrito(%)")) %>% PostHocTest()
+
+clin.final_melt %>% filter(exame=='Hematocrito(%)') %>% dunn_test(value~grupo_tempo)
+
 ```
 
 
@@ -483,9 +513,11 @@ plaquetas.plot <- clin.final_melt %>% filter(exame==celula) %>%
   geom_bracket(xmin=1.8, xmax=2.2, y.position = 140000, inherit.aes = F, label='*', label.size = 6)
 ggsave("Plaquetas.png", width = 6, height = 5)
 
-aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% summary()
+aov(value~Grupo*tempo, data= filter(clin.final_melt, exame == celula)) %>% PostHocTest()
 #Sem interação
 ## DHF tempo
+
+clin.final_melt %>% filter(exame==celula) %>% dunn_test(value~grupo_tempo)
 ```
 
 ###ALT

@@ -1,0 +1,219 @@
+---
+title: "Enrichr"
+author: "Gabriel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+#Enrichr
+```{r}
+#Selected Pathways Enrichr
+
+enrichr.dna <- read.xlsx("Selected Pathways Enrichr.xlsx", sheet=1) %>% reshape2::melt(., id.vars=c('Hallmark.Series.(terms)', 'P-value', 'Adjusted.p-value', 'Odds.Ratio', 'Combined.score'), value.name = 'Term', variable.name='Class')
+
+enrichr.ccycle <- read.xlsx("Selected Pathways Enrichr.xlsx", sheet=2) %>% reshape2::melt(., id.vars=c('Hallmark.Series.(terms)', 'P-value', 'Adjusted.p-value', 'Odds.Ratio', 'Combined.score'), value.name = 'Term', variable.name='Class')
+
+enrichr.cdeath <- read.xlsx("Selected Pathways Enrichr.xlsx", sheet=3) %>% reshape2::melt(., id.vars=c('Hallmark.Series.(terms)', 'P-value', 'Adjusted.p-value', 'Odds.Ratio', 'Combined.score'), value.name = 'Term', variable.name='Class')
+
+
+enrichr.infl <- read.xlsx("Selected Pathways Enrichr.xlsx", sheet=4) %>% reshape2::melt(., id.vars=c('Hallmark.Series.(terms)', 'P-value', 'Adjusted.p-value', 'Odds.Ratio', 'Combined.score'), value.name = 'Term', variable.name='Class')
+
+enrichr.ctype <- read.xlsx("Selected Pathways Enrichr.xlsx", sheet=5) %>% reshape2::melt(., id.vars=c('Hallmark.Series.(terms)', 'P-value', 'Adjusted.p-value', 'Odds.Ratio', 'Combined.score'), value.name = 'Term', variable.name='Class')
+
+enrichr.all <- rbind(enrichr.dna, enrichr.ccycle, enrichr.cdeath, enrichr.infl, enrichr.ctype)
+enrichr.all$Class <- gsub("\\.", " ", enrichr.all$Class)
+enrichr.all$Class <- gsub("\\/", "-", enrichr.all$Class)
+```
+
+
+```{r}
+enrichr_termos <- unique(enrichr.all$`Hallmark.Series.(terms)`) #12
+enrichr_class <- unique(enrichr.all$Class)
+```
+
+
+```{r}
+n_enrq <- 1
+dna.dmg.plot <- 
+enrichr.all %>% filter(Class %in% enrichr_class[n_enrq]) %>%
+  ggplot(aes(-log(`Adjusted.p-value`), reorder(Term, -`Adjusted.p-value`), fill=reorder(Term, -`Adjusted.p-value`)))+
+  geom_col()+
+  geom_text(aes(label=(`Adjusted.p-value`)), nudge_x = -2)+
+  scale_fill_manual(values = viridis::viridis(12, begin = 0.2, end=1), guide = NULL)+
+  labs(x="P-value rank", y = NULL, title=enrichr_class[n_enrq])+
+  theme_classic()+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_text(size=10, color="black"),
+        plot.title = element_text(hjust=.5, size=14))
+
+```
+
+```{r}
+n_enrq <- 2
+
+cell.cycle.plot <- 
+enrichr.all %>% filter(Class %in% enrichr_class[n_enrq]) %>%
+  ggplot(aes(-log(`Adjusted.p-value`), reorder(Term, -`Adjusted.p-value`), fill=reorder(Term, -`Adjusted.p-value`)))+
+  geom_col()+
+  geom_text(aes(label=(`Adjusted.p-value`)), nudge_x = -2)+
+  scale_fill_manual(values = viridis::viridis(12, begin = 0.2, end=1), guide = NULL)+
+  labs(x="P-value rank", y = NULL, title=enrichr_class[n_enrq])+
+  theme_classic()+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_text(size=10, color="black"),
+        plot.title = element_text(hjust=.5, size=14))
+
+```
+
+```{r}
+n_enrq <- 3
+
+cell.death.plot <- 
+enrichr.all %>% filter(Class %in% enrichr_class[n_enrq]) %>%
+  ggplot(aes(-log(`Adjusted.p-value`), reorder(Term, -`Adjusted.p-value`), fill=reorder(Term, -`Adjusted.p-value`)))+
+  geom_col()+
+  geom_text(aes(label=(`Adjusted.p-value`)), nudge_x = -2)+
+  scale_fill_manual(values = viridis::viridis(12, begin = 0.2, end=1), guide = NULL)+
+  labs(x="P-value rank", y = NULL, title=enrichr_class[n_enrq])+
+  theme_classic()+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_text(size=10, color="black"),
+        plot.title = element_text(hjust=.5, size=14))
+
+```
+
+```{r}
+n_enrq <- 4
+
+inflm.plot <- 
+enrichr.all %>% filter(Class %in% enrichr_class[n_enrq]) %>%
+  ggplot(aes(-log(`Adjusted.p-value`), reorder(Term, -`Adjusted.p-value`), fill=reorder(Term, -`Adjusted.p-value`)))+
+  geom_col()+
+  geom_text(aes(label=(`Adjusted.p-value`)), nudge_x = -2)+
+  scale_fill_manual(values = viridis::viridis(12, begin = 0.2, end=1), guide = NULL)+
+  labs(x="P-value rank", y = NULL, title=enrichr_class[n_enrq])+
+  theme_classic()+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_text(size=10, color="black"),
+        plot.title = element_text(hjust=.5, size=14))
+
+```
+
+```{r}
+n_enrq <- 5
+
+cell.type.plot <- 
+enrichr.all %>% filter(Class %in% enrichr_class[n_enrq]) %>%
+  ggplot(aes(-log(`Adjusted.p-value`), reorder(Term, -`Adjusted.p-value`), fill=reorder(Term, -`Adjusted.p-value`)))+
+  geom_col()+
+  geom_text(aes(label=(`Adjusted.p-value`)), nudge_x = -2)+
+  scale_fill_manual(values = viridis::viridis(12, begin = 0.2, end=1), guide = NULL)+
+  labs(x="P-value rank", y = NULL, title=enrichr_class[n_enrq])+
+  theme_classic()+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_text(size=10, color="black"),
+        plot.title = element_text(hjust=.5, size=14))
+
+```
+
+```{r}
+#library(cowplot)
+
+pl <- align_plots(dna.dmg.plot, cell.cycle.plot, cell.death.plot, cell.type.plot,inflm.plot, align = 'v')
+ggdraw(pl[[5]])
+
+
+#Muda o nome no ggsave de acordo com a cor utilizada
+gerar_e_salvar_grafico <- function(n_enrq) {
+  ggdraw(pl[[n_enrq]])
+  ggsave(paste0("E:/Doutorado/UCEVA/Experimentos/miR-Dengue/Enrichr/", enrichr_class[n_enrq], "_h_viridis.png"), width = 12, height = 5, bg = "white")
+}
+
+for (n_enrq in seq_along(pl)) {
+  gerar_e_salvar_grafico(n_enrq)
+}
+```
+
+
+#Chord plot
+```{r}
+library(GOplot)
+```
+
+```{r}
+ntw.tbl <- readxl::read_excel("ClueGOResultTable-0.xls")
+#ntw.tbl <- ntw.tbl %>% dplyr::select(All.Associated.Genes, Associated.Genes.Found, Ontology.Source, Term, Term.PValue, Term.PValue.Corrected.with.Bonferroni.step.down)
+
+ntw.tbl$`Associated Genes Found`<- str_replace(ntw.tbl$`Associated Genes Found`, '\\[', '')
+ntw.tbl$`Associated Genes Found` <- str_replace(ntw.tbl$`Associated Genes Found`, '\\]', '')
+
+ntw_terms <- ntw.tbl %>% dplyr::select(Category = `Ontology Source`, ID, Term, Genes = `Associated Genes Found`, adj_pval = `Term PValue Corrected with Bonferroni step down`)
+
+ntw_genes <- unlist(str_split(as.character(ntw_terms$Genes), ","))
+ntw_genes <- str_remove(ntw_genes,'\\"') %>% gsub("c(", "", ., fixed = T) %>% gsub(")", "", .) %>% gsub(" ", "", .) %>% str_remove(., "\"")
+
+ntw_genes <- data.frame(ID= unique(ntw_genes)) %>% na.omit()
+ntw_genes$logFC <- 0
+
+chord_dat(ntw.tbl, genes = Associated.Genes.Found, process = Term)
+
+circ.ntw <- circle_dat(ntw_terms, ntw_genes)
+```
+
+```{r}
+chord.ntw <- chord_dat(circ.ntw, genes = ntw_genes, process = unique(circ.ntw$term))
+
+GOChord(chord.ntw[,-42],nlfc = 0)
+```
+
+```{r}
+ntw.select.terms <- c('positive regulation of cell growth',
+'positive regulation of growth',
+'positive regulation of cell cycle process',
+'cell cycle G1/S phase transition',
+'positive regulation of developmental growth',
+'positive regulation of cell cycle phase transition',
+'Cell cycle',
+'G1 to S cell cycle control',
+'JAK-STAT signaling pathway',
+'p53 signaling pathway',
+'DNA damage response',
+'miRNA regulation of DNA damage response',
+'ATM signaling pathway',
+'TP53 network'
+)
+
+ntw_terms.select <- ntw_terms %>% filter(Term %in% ntw.select.terms)
+
+circ.ntw_select <- circle_dat(ntw_terms.select, ntw_genes)
+chord.ntw_select <- chord_dat(circ.ntw_select, genes=ntw_genes, process = unique(circ.ntw_select$term))
+
+pdf("Figuras_subset/Figuras finais miRDengue/Chordplot termos selecionados ClueGO network.pdf", width = 10, height = 12)
+GOChord(chord.ntw_select[,-15], nlfc = 0, gene.order = 'alphabetical',
+        ribbon.col = c(viridis::turbo(30)[seq(1,30,length.out=14)]), gene.size = 4)
+dev.off()
+
+```
+
+#Dados LATAM
+```{r}
+latam.ori <- read.csv("W_Tabla_Incidencia_Full_Data_data.csv")
+
+latam <- latam.ori %>% dplyr::select(Year, Country_sp, TIS, PopFemale, PopMale, Population, Muertes, Total.Casos.de.dengue, Incidence.per.100.000.pop.)
+latam$Year <- factor(latam$Year)
+latam$Country_sp <- factor(latam$Country_sp)
+
+latam.top <- latam %>% filter(Year == 2023) %>%  slice_max(order_by = Total.Casos.de.dengue, n = 20) %>% arrange(-Incidence.per.100.000.pop.)
+
+latam.top <- latam %>% pivot_wider(names_from = c(Year), values_from =  c(PopFemale, PopMale, Population,Muertes, Total.Casos.de.dengue, Incidence.per.100.000.pop.)) %>% 
+  slice_max(order_by = Total.Casos.de.dengue_2023, n = 10) #%>% 
+  #melt(id.vars = c("Country_sp", "TIS")) %>%
+  #separate_wider_delim(variable, "_", names=c("Variable", "Year"))
+
+
+latam %>% filter(Country_sp %in% latam.top$Country_sp) %>% ggplot(aes(Country_sp, Total.Casos.de.dengue, fill=Year))+
+  stat_summary(fun='mean', geom='bar', position='dodge')+
+  scale_x_discrete(limit=latam.top$Country_sp)+
+  ggbreak::scale_y_cut(breaks=c(900000, 8000000), scales = c(0,2), expand = T, which = c(0,2))
+```
+
