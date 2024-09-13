@@ -40,17 +40,19 @@ legend("topright",
 ```{r}
 #dCT2.limpo <- dCT.2 %>% dplyr::select(-SA.3_P, -SA.2a_P, -SSA.1_P) #PCA BOM, apenas 1 miRNA DEmiR
 dCT2.limpo <- dCT.2 %>% dplyr::select(-SA.4_P, -SSA.1_P, -SA.3_P, -SA.2a_P) 
-
+colnames(dCT2.limpo) <- c('DHF_1', 'DHF_2', 'DHF_3', 'DHF_4', 'DF_1', 'DF_2', 'DF_3', 'DF_4')
 
 dist.limpo <- dist(t(dCT2.limpo))
 hc <- hclust(dist.limpo)
 dend <- as.dendrogram(hc)
 #plot(dend)
 
+pdf('Figuras_subset/Figuras finais miRDengue/Dendograma.pdf', width = 5, height = 5)
 dend %>% 
-  color_labels(labels = colnames(dCT2.limpo[1:4]), col=cores_cba[-2]) %>%
-  color_labels(labels = colnames(dCT2.limpo[5:ncol(dCT2.limpo)]), col=cores_cba[-2]) %>%
+  color_labels(labels = colnames(dCT2.limpo[1:4]), col=cores_cba[3]) %>%
+  color_labels(labels = colnames(dCT2.limpo[5:ncol(dCT2.limpo)]), col=cores_cba[1]) %>%
   plot() 
+dev.off()
 legend("topright",
        legend=c("DHF", "DF"),
        col=cores_cba[-2],
@@ -60,16 +62,19 @@ legend("topright",
 ##Distancia euclidiana
 ```{r}
 dist.matrix <- as.matrix(dist.limpo)
+pdf('Figuras_subset/Figuras finais miRDengue/Matrix euclediana.pdf', width = 4, height = 3.5)
 pheatmap(dist.matrix,
          color=colorRampPalette(c("white", "blue"))(50),
          scale = "none",
          border_color = NA)
+dev.off()
 ```
 
 ##Correlação
 ```{r}
 breaksList = seq(-1,1, by = 0.02)
 
+pdf('Figuras_subset/Figuras finais miRDengue/Correlacao expressao (spearman).pdf', width = 4, height = 3.5)
 pheatmap(cor(dCT2.limpo, method = "spearman"),
          #color=colorRampPalette(c("blue", "black", "yellow"))(100),
          color = colorRampPalette(rev(brewer.pal(n = 7, name = "PRGn")))(length(breaksList)), # Defines the vector of colors for the legend (it has to be of the same lenght of breaksList)
@@ -77,18 +82,20 @@ pheatmap(cor(dCT2.limpo, method = "spearman"),
          border=NA,
          cluster_rows = T,
          cluster_cols = T)
+dev.off()
 ```
 
 ```{r}
 #Clusterizacion
 #Criar dataframe com a identificacao de cada paciente em grupos
 amostras.2 <- data.frame(amostra=as.character(colnames(dCT2.limpo)))
-amostras.2 <- amostras.2 %>% mutate(Condition = ifelse(grepl("^G", amostra), "DHF", "DF"))
+amostras.2 <- amostras.2 %>% mutate(Condition = ifelse(grepl("^DH", amostra), "DHF", "DF"))
 amostras.2 <- amostras.2 %>% column_to_rownames("amostra")
 ```
 
 ##Heatmap expressao
 ```{r}
+pdf('Figuras_subset/Figuras finais miRDengue/Heatmap expressao (dCT^2).pdf', width = 8, height = 8)
 pheatmap(dCT2.limpo,
          border_color = NA,
          cluster_cols = F, gaps_col = 4,
@@ -101,6 +108,7 @@ pheatmap(dCT2.limpo,
          scale="row",
          legend_breaks = c(-2,0,2),
          legend_labels = c("Min", "Avg", "Max"))
+dev.off()
 ```
 
 
@@ -109,7 +117,7 @@ pheatmap(dCT2.limpo,
 ```{r}
 pca.limpo <- PCA(t(dCT2.limpo), graph = F)
 
-pdf('Figuras_subset/pca.pdf', width = 6 ,height = 4)
+pdf('Figuras_subset/Figuras finais miRDengue/PCA.pdf', width = 6 ,height = 4)
 fviz_pca_ind(pca.limpo,
              geom.ind = "point",
              pointsize=4, pointshape=21,
@@ -146,6 +154,9 @@ fc_grave.naograve <- data.frame(FC_Grave_NaoGrave = Avg2dCT.limpo$Grave/Avg2dCT.
 fc_grave.naograve$log2fc <- log2(fc_grave.naograve$FC_Grave_NaoGrave)
 
 DEmiR <-  fc_grave.naograve %>% filter(pval <0.05) %>% rownames_to_column("hsa_mir") %>% mutate(miR = gsub("hsa-", "", .$hsa_mir))
+
+
+write.xlsx(fc_grave.naograve, 'Figuras_subset/Figuras finais miRDengue/miRs fold change.xlsx', asTable = T, rowNames=T)
 ```
 
 ```{r}
@@ -160,7 +171,7 @@ names(keyvals)[keyvals == "#65156EFF"] <- "Down-regulated"# "#420A68FF"
 
 
 
-pdf('Figuras_subset/volcano (p nominal).pdf', width = 8, height = 5)
+pdf('Figuras_subset/Figuras finais miRDengue/volcano (p nominal).pdf', width = 6, height = 6)
 EnhancedVolcano(fc_grave.naograve,
                 x="log2fc",
                 y="pval",
@@ -174,7 +185,6 @@ EnhancedVolcano(fc_grave.naograve,
                 xlim = c(-2,8),
                 ylim=c(0,5),
                 max.overlaps = Inf, drawConnectors = T)+
-  theme_bw()+
   annotate("rect", xmin = 1, xmax = Inf,
            ymin = 1.30103, ymax = Inf,
            alpha = .1, fill = "#fe6161")
@@ -236,6 +246,8 @@ significant_mirtar <- distinct(significant_mirtar, Target, miRNA, .keep_all = T)
 
 table(significant_mirtar$miRNA)
 write.xlsx(significant_mirtar, "significant mirtar.xlsx")
+
+write.xlsx(significant_mirtar, "Figuras_subset/Figuras finais miRDengue/Mirtar targets - upregulated miRs.xlsx")
 ```
 
 ```{r}
@@ -281,14 +293,16 @@ mirtar_GO.res <- mirtar_GO@result
 ```
 
 ```{r}
-barplot.df_dhf <- fc_grave.naograve %>% ggplot(aes(log2fc, rownames(.), fill=pval<0.05))+
+#barplot.df_dhf <- 
+pdf('Figuras_subset/Figuras finais miRDengue/Fold change barplot.pdf', width = 5.25, height = 6.5)
+fc_grave.naograve %>% ggplot(aes(log2fc, rownames(.), fill=pval<0.05))+
   geom_col()+
-  scale_fill_manual(values=c('grey50', 'orange'), name=NULL, labels=c("N.S.", "*P < 0.05"))+
+  scale_fill_manual(values=c('grey70', '#fe6161'), name=NULL, labels=c("N.S.", "*P < 0.05"))+
   labs(x='Log2 (Fold Change)', y=NULL)+
   theme_classic()+
   geom_vline(xintercept = 0, color='grey30')+
   theme(axis.text = element_text(size=8, color='black'))
-
+dev.off()
 ggsave("Figuras_subset/Barplot miR Sig.png", width = 5, height = 6)
 ```
 
@@ -360,8 +374,8 @@ monocito <- clin.final_melt %>% filter(exame==celula) %>%
   stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
   stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
   geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
-  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
-  labs(x=NULL, y=paste(celula, "(10^3/uL)"))+
+  scale_fill_manual(values=cores_cba[-2], name = 'Entry', labels=c('Admission', 'Last register'))+
+  labs(x=NULL, y=paste("Monocytes (10^3/uL)"))+
   theme_classic()+
   theme(axis.text = element_text(size=12, color='black'))+
   geom_bracket(xmin=1.825, xmax=2.2, y.position = 3.1, label="**", inherit.aes = F, label.size = 6)+
@@ -400,8 +414,8 @@ leucocitos <- clin.final_melt %>% filter(exame==celula) %>%
   stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
   stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
   geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
-  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
-   labs(x=NULL, y=paste(celula, "(10^3/uL)"))+
+  scale_fill_manual(values=cores_cba[-2], name = 'Entry', labels=c('Admission', 'Last register'))+
+   labs(x=NULL, y=paste("Leukocytes (10^3/uL)"))+
   theme_classic()+
   theme(axis.text = element_text(size=12, color='black'))+
   geom_bracket(xmin=1.825, xmax=2.2, y.position = 13, label="*", inherit.aes = F, label.size = 6)+
@@ -424,8 +438,8 @@ linfocitos <- clin.final_melt %>% filter(exame==celula) %>%
   stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
   stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
   geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
-  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
-  labs(x=NULL, y=paste(celula, "(10^3/uL)"))+
+  scale_fill_manual(values=cores_cba[-2], name = 'Entry', labels=c('Admission', 'Last register'))+
+  labs(x=NULL, y=paste("Lymphocytes (10^3/uL)"))+
   theme_classic()+
   theme(axis.text = element_text(size=12, color='black'))+
   geom_bracket(xmin=1.8, xmax=2.2, y.position = 3.5, label="**", inherit.aes = F, label.size = 6)+
@@ -447,8 +461,8 @@ neutrofilos <- clin.final_melt %>% filter(exame==celula) %>%
   stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
   stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
   geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
-  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
-  labs(x=NULL, y=paste(celula, "(10^3/uL)"))+
+  scale_fill_manual(values=cores_cba[-2], name = 'Entry', labels=c('Admission', 'Last register'))+
+  labs(x=NULL, y=paste("Neutrophils (10^3/uL)"))+
   theme_classic()+
   theme(axis.text = element_text(size=12, color='black'))+
   coord_cartesian(ylim = c(0,10), expand = F, xlim=c(0.5,2.5))
@@ -466,7 +480,7 @@ hemoglobina <- clin.final_melt %>% filter(exame=="Hemoglobina") %>%
   stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
   stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
   geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
-  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+  scale_fill_manual(values=cores_cba[-2], name = 'Entry', labels=c('Admission', 'Last register'))+
   labs(x=NULL, y="Hemoglobina")+
   theme_classic()+
   theme(axis.text = element_text(size=12, color='black'))+
@@ -483,7 +497,7 @@ hematocrito <- clin.final_melt %>% filter(exame=="Hematocrito(%)") %>%
   stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
   stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
   geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
-  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
+  scale_fill_manual(values=cores_cba[-2], name = 'Entry', labels=c('Admission', 'Last register'))+
   labs(x=NULL, y="Hematocrito (%)")+
   theme_classic()+
   theme(axis.text = element_text(size=12, color='black'))+
@@ -505,8 +519,8 @@ plaquetas.plot <- clin.final_melt %>% filter(exame==celula) %>%
   stat_summary(fun.data = mean_sd, geom="errorbar", width=.2, position = position_dodge(width = .75))+
   stat_summary(fun=mean, geom='bar', width=.75, color='black', position = "dodge2")+
   geom_point(position = position_jitterdodge(seed=25), shape=21, size=3, alpha=.5)+
-  scale_fill_manual(values=cores_cba[-2], name = 'Registro', labels=c('Entrada', 'Saida'))+
-   labs(x=NULL, y="Plaquetas (10^3/uL)")+
+  scale_fill_manual(values=cores_cba[-2], name = 'Entry', labels=c('Admission', 'Last register'))+
+   labs(x=NULL, y="Platelets (10^3/uL)")+
   theme_classic()+
   theme(axis.text = element_text(size=12, color='black'))+
   coord_cartesian(ylim = c(0,200000), expand = F, xlim=c(0.5,2.5))+
@@ -556,12 +570,20 @@ t.test(value~Grupo, data= filter(clin.final_melt, exame == 'AST'))
 
 ####GGarrange
 ```{r}
-pdf("Figuras_subset/Painel Celulas.pdf", width = 6, height = 4)
+pdf("Figuras_subset/Figuras finais miRDengue/Painel Celulas.pdf", width = 7, height = 4.75)
 ggarrange(monocito, leucocitos, linfocitos, neutrofilos, plaquetas.plot, 
           #hemoglobina, hematocrito, ast.plot, alt.plot, 
           labels="AUTO", font.label = list(size=12),
-          common.legend = T, legend = "none")
+          common.legend = T, legend = "right")
 dev.off()
+
+pdf("Figuras_subset/Figuras finais miRDengue/Clinicos nao-significativos.pdf", width = 5, height = 4.25)
+ggarrange(#monocito, leucocitos, linfocitos, neutrofilos, plaquetas.plot, 
+          hemoglobina, hematocrito, ast.plot, alt.plot, 
+          labels="AUTO", font.label = list(size=12),
+          common.legend = T, legend = "right")
+dev.off()
+
 
 ggsave("Celulas.png", width = 8, height = 8, bg='white')
 ```

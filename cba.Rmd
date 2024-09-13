@@ -185,18 +185,26 @@ celulassaida <- celulas.saida %>% column_to_rownames("exame")
 celulassaida$tempo <- NULL
 
 matrix.cor <- as.matrix(rbind(cba.res_mantidas, DEmiR_dct, celulasingresso))
+<<<<<<< HEAD
 rownames(matrix.cor) <- c("TNFa", "IL-12", "IL-8", "IL-10", "IL-6", 'IL-1b',
                           "hsa-let-7i-5p", "hsa-miR-130a-3p", "hsa-miR-15a-5p", "hsa-miR-181d-5p", "hsa-miR-21-5p",   "hsa-miR-98-5p",
                           'Leukocytes', 'Lymphocytes', 'Monocytes', 'Neutrophils', 'Platelets')
+=======
+
+>>>>>>> 16a65d9911a5b825078fc935c49952bc772333b7
 
 library(corrplot)
 library(Hmisc)
 corr_dct.cba <- rcorr(t(matrix.cor), type = 'pearson')
 
 corrplot(cor(t(matrix.cor)))
+<<<<<<< HEAD
 pdf('Figuras_subset/Figuras finais miRDengue/Correlacao miR-dados (pearson).pdf', width =8, height = 5)
 corrplot(corr_dct.cba$r[7:12,c(1:6, 13:17)], p.mat = corr_dct.cba$P[7:12, c(1:6, 13:17)], type='full', insig = 'label_sig', method='square', tl.col = 'black', tl.srt = 45, tl.cex=1.3)
 dev.off()
+=======
+corrplot(corr_dct.cba$r[7:12,c(1:6, 13:17)], p.mat = corr_dct.cba$P[7:12, c(1:6, 13:17)], type='full', insig = 'label_sig', method='square', tl.col = 'black', tl.srt = 45, tl.cex=1.3)
+>>>>>>> 16a65d9911a5b825078fc935c49952bc772333b7
 
 corrplot(corr_dct.cba$r, type='full', p.mat = corr_dct.cba$P, insig = 'label_sig', method = 'square',
          tl.col = 'black', tl.srt = 45, tl.cex=1.2)
@@ -340,7 +348,11 @@ sig.plot <- c('monocito', 'leucocitos', 'linfocitos', 'neutrofilos', 'plaquetas.
 pdf("Painel poster.pdf", width = 8, height = 8.5)
 ggarrange(tnf.plot, il12.plot, il6.plot, il8.plot, il10.plot, il1.plot, monocito, leucocitos, linfocitos, neutrofilos, plaquetas.plot, ncol=3, nrow=4, labels = 'AUTO', common.legend = T, legend = 'right', font.label = list(size=12, face = 'plain'))
 
+<<<<<<< HEAD
 pdf('Figuras_subset/Figuras finais miRDengue/Painel CBA.pdf', width = 6, height = 4)
+=======
+pdf('Figuras_subset/Painel CBA.pdf', width = 6, height = 4)
+>>>>>>> 16a65d9911a5b825078fc935c49952bc772333b7
 ggarrange(tnf.plot, il12.plot, il6.plot, il8.plot, il10.plot, il1.plot,
           labels = 'AUTO', common.legend = T, legend = 'right', font.label = list(size=12))
 
